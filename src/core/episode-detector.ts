@@ -1,70 +1,88 @@
-/**
- * 将中文数字转换为阿拉伯数字
- * 支持“零”到“千”，以及“第一十二”等格式
- */
-export function chineseToNumber(chnStr: string): number {
-  const chnNumChar: { [key: string]: number } = {
-    零: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9,
-    壹: 1, 贰: 2, 叁: 3, 肆: 4, 伍: 5, 陆: 6, 柒: 7, 捌: 8, 玖: 9
-  };
-  const chnNameValue: { [key: string]: { value: number, secUnit: boolean } } = {
-    十: { value: 10, secUnit: false },
-    拾: { value: 10, secUnit: false },
-    百: { value: 100, secUnit: false },
-    佰: { value: 100, secUnit: false },
-    千: { value: 1000, secUnit: false },
-    仟: { value: 1000, secUnit: false },
-  };
+const CHINESE_DIGITS: Record<string, number> = {
+  零: 0, '〇': 0,
+  一: 1, 壹: 1,
+  二: 2, 两: 2, 贰: 2, 貳: 2,
+  三: 3, 叁: 3, 參: 3,
+  四: 4, 肆: 4,
+  五: 5, 伍: 5,
+  六: 6, 陆: 6, 陸: 6,
+  七: 7, 柒: 7,
+  八: 8, 捌: 8,
+  九: 9, 玖: 9,
+};
 
-  // 去除前缀，如“第”
-  let processedStr = chnStr.replace(/^第/, '');
+const SMALL_CHINESE_UNITS: Record<string, number> = {
+  十: 10, 拾: 10,
+  百: 100, 佰: 100,
+  千: 1000, 仟: 1000,
+};
 
-  if (processedStr.startsWith('十') || processedStr.startsWith('拾')) {
-    processedStr = '一' + processedStr;
-  }
+const LARGE_CHINESE_UNITS: Record<string, number> = {
+  万: 10_000, 萬: 10_000,
+  亿: 100_000_000, 億: 100_000_000,
+};
 
-  let rtn = 0;
-  let section = 0;
-  let number = 0;
-  let secUnit = false;
+const CHINESE_NUMBER_RE = /[零〇一壹二两贰貳三叁參四肆五伍六陆陸七柒八捌九玖十拾百佰千仟万萬亿億]+/g;
 
-  for (let i = 0; i < processedStr.length; i++) {
-    const char = processedStr[i];
-    const num = chnNumChar[char];
-    if (typeof num !== 'undefined') {
-      number = num;
-      if (i === processedStr.length - 1) {
-        section += number;
-      }
-    } else {
-      const unit = chnNameValue[char];
-      if (typeof unit === 'undefined') {
-        continue;
-      }
-      secUnit = unit.secUnit;
-      if (secUnit) {
-        section = (section + number) * unit.value;
-        rtn += section;
-        section = 0;
-      } else {
-        section += number * unit.value;
-      }
-      number = 0;
+/** Convert ordinary or financial Chinese numerals to a non-negative integer. */
+export function chineseToNumber(input: string): number {
+  const text = input.replace(/^第/, '');
+  if (!text) return NaN;
+
+  const hasUnit = [...text].some(char =>
+    SMALL_CHINESE_UNITS[char] !== undefined || LARGE_CHINESE_UNITS[char] !== undefined
+  );
+
+  // A unit-less token such as 二〇二六 is a sequence of digits, not an addition.
+  if (!hasUnit) {
+    let digits = '';
+    for (const char of text) {
+      const digit = CHINESE_DIGITS[char];
+      if (digit === undefined) return NaN;
+      digits += String(digit);
     }
+    return Number(digits);
   }
-  return rtn + section;
+
+  let total = 0;
+  let section = 0;
+  let digit: number | undefined;
+
+  for (const char of text) {
+    const nextDigit = CHINESE_DIGITS[char];
+    if (nextDigit !== undefined) {
+      digit = nextDigit;
+      continue;
+    }
+
+    const smallUnit = SMALL_CHINESE_UNITS[char];
+    if (smallUnit !== undefined) {
+      section += (digit ?? 1) * smallUnit;
+      digit = undefined;
+      continue;
+    }
+
+    const largeUnit = LARGE_CHINESE_UNITS[char];
+    if (largeUnit !== undefined) {
+      section += digit ?? 0;
+      if (largeUnit === 10_000) total += section * largeUnit;
+      else total = (total + section) * largeUnit;
+      section = 0;
+      digit = undefined;
+      continue;
+    }
+
+    return NaN;
+  }
+
+  return total + section + (digit ?? 0);
 }
 
 export interface Candidate {
-  /** 数值 */
   value: number;
-  /** 原始匹配文本 */
   raw: string;
-  /** 在文件名中的起始位置 */
   index: number;
-  /** 是否为由点号连接的浮点数（如 1.5） */
   isFloat: boolean;
-  /** 浮点数的整数部分（仅 isFloat 为 true 时有效） */
   intPart: number;
 }
 
@@ -76,277 +94,214 @@ export interface FileItem {
   finalNumberStr: string;
 }
 
-/**
- * 从文件名中提取所有可能的数字候选（阿拉伯数字和中文数字）
- * 在剥离扩展名后的文件名上进行提取
- */
-export function extractCandidates(filename: string): Candidate[] {
-  const candidates: Candidate[] = [];
-
-  // 去掉文件扩展名，避免扩展名中的数字污染候选池
-  const dotIdx = filename.lastIndexOf('.');
-  const nameWithoutExt = dotIdx > 0 ? filename.substring(0, dotIdx) : filename;
-
-  // 1. 提取所有独立整数段
-  const numRegex = /\d+/g;
-  const intMatches: { str: string; index: number }[] = [];
-  let match;
-  while ((match = numRegex.exec(nameWithoutExt)) !== null) {
-    intMatches.push({ str: match[0], index: match.index });
-  }
-
-  // 先将所有整数作为候选加入
-  for (const m of intMatches) {
-    candidates.push({
-      value: parseInt(m.str, 10),
-      raw: m.str,
-      index: m.index,
-      isFloat: false,
-      intPart: parseInt(m.str, 10),
-    });
-  }
-
-  // 2. 检查相邻整数间是否被单个点号相连，构成 n.n 浮点候选
-  for (let k = 0; k < intMatches.length - 1; k++) {
-    const curr = intMatches[k];
-    const next = intMatches[k + 1];
-    const gapStart = curr.index + curr.str.length;
-    const gapEnd = next.index;
-    const gap = nameWithoutExt.substring(gapStart, gapEnd);
-
-    if (gap !== '.') continue;
-
-    // 排除后面紧跟规格单位的情况（如 1080p, 10bit, 24fps, 48khz）
-    const afterNext = nameWithoutExt.substring(next.index + next.str.length, next.index + next.str.length + 4).toLowerCase();
-    if (/^(p\b|bit|fps|hz|k\b|x\d)/.test(afterNext)) continue;
-
-    // 排除小数部分过大的（>=100），这通常是分辨率 1920.1080
-    const subVal = parseInt(next.str, 10);
-    if (subVal >= 100) continue;
-
-    const combinedRaw = `${curr.str}.${next.str}`;
-    candidates.push({
-      value: parseFloat(combinedRaw),
-      raw: combinedRaw,
-      index: curr.index,
-      isFloat: true,
-      intPart: parseInt(curr.str, 10),
-    });
-  }
-
-  // 3. 提取中文数字
-  const chineseRegex = /第?[一二三四五六七八九十百零壹贰叁肆伍陆柒捌玖拾佰千仟]+[集话期页回]?/g;
-  while ((match = chineseRegex.exec(nameWithoutExt)) !== null) {
-    const pureChn = match[0].replace(/^第/, '').replace(/[集话期页回]$/, '');
-    if (pureChn.length > 0) {
-      try {
-        const val = chineseToNumber(pureChn);
-        if (val > 0) {
-          candidates.push({
-            value: val,
-            raw: match[0],
-            index: match.index,
-            isFloat: false,
-            intPart: val,
-          });
-        }
-      } catch {
-        // 忽略
-      }
-    }
-  }
-
-  // 按在文件名中的位置排序
-  candidates.sort((a, b) => a.index - b.index);
-  return candidates;
+interface SequenceInfo {
+  start: number;
+  end: number;
+  length: number;
 }
 
-/**
- * 分析文件列表，并为每个文件确定最优的集数序号
- */
-export function analyzeEpisodes(files: { name: string; path: string }[]): FileItem[] {
-  const N = files.length;
-  if (N === 0) return [];
+function withoutExtension(filename: string): string {
+  const slash = Math.max(filename.lastIndexOf('/'), filename.lastIndexOf('\\'));
+  const dot = filename.lastIndexOf('.');
+  if (dot <= slash + 1) return filename;
 
-  // 1. 提取各文件候选
-  const fileItems: FileItem[] = files.map(file => ({
-    path: file.path,
-    name: file.name,
+  const extension = filename.slice(dot + 1);
+  // Keep a trailing numeric component: in "001.2" it is part of the name.
+  return /^[a-z][a-z0-9]{0,9}$/i.test(extension) ? filename.slice(0, dot) : filename;
+}
+
+/** Extract every Arabic and Chinese number without relying on episode keywords. */
+export function extractCandidates(filename: string): Candidate[] {
+  const stem = withoutExtension(filename);
+  const candidates: Candidate[] = [];
+  const arabic: Array<{ raw: string; index: number; value: number }> = [];
+
+  for (const match of stem.matchAll(/\d+/g)) {
+    const raw = match[0];
+    const value = Number(raw);
+    if (!Number.isSafeInteger(value)) continue;
+    const entry = { raw, index: match.index, value };
+    arabic.push(entry);
+    candidates.push({ value, raw, index: match.index, isFloat: false, intPart: value });
+  }
+
+  // n.n is recorded as extra evidence. It is never selected as the base sequence.
+  for (let index = 0; index + 1 < arabic.length; index += 1) {
+    const left = arabic[index];
+    const right = arabic[index + 1];
+    const separator = stem.slice(left.index + left.raw.length, right.index);
+    // A very large right-hand side is overwhelmingly likely to be a media
+    // specification (01.1080p), not an episode sub-number.
+    if (separator !== '.' || right.value >= 100) continue;
+
+    const raw = `${left.raw}.${right.raw}`;
+    const value = Number(raw);
+    if (!Number.isFinite(value)) continue;
+    candidates.push({ value, raw, index: left.index, isFloat: true, intPart: left.value });
+  }
+
+  for (const match of stem.matchAll(CHINESE_NUMBER_RE)) {
+    const value = chineseToNumber(match[0]);
+    if (!Number.isSafeInteger(value) || value < 0) continue;
+    candidates.push({
+      value,
+      raw: match[0],
+      index: match.index,
+      isFloat: false,
+      intPart: value,
+    });
+  }
+
+  return candidates.sort((left, right) =>
+    left.index - right.index || Number(left.isFloat) - Number(right.isFloat)
+  );
+}
+
+function candidateStyle(candidate: Candidate): string {
+  if (/^\d+$/.test(candidate.raw)) {
+    const plain = String(candidate.value);
+    return candidate.raw === plain ? 'arabic:plain' : `arabic:padded:${candidate.raw.length}`;
+  }
+  return 'chinese';
+}
+
+function buildSequences(values: Iterable<number>): Map<number, SequenceInfo> {
+  const sorted = [...new Set(values)].sort((left, right) => left - right);
+  const result = new Map<number, SequenceInfo>();
+
+  for (let cursor = 0; cursor < sorted.length;) {
+    let end = cursor;
+    while (end + 1 < sorted.length && sorted[end + 1] === sorted[end] + 1) end += 1;
+    const sequence = {
+      start: sorted[cursor],
+      end: sorted[end],
+      length: end - cursor + 1,
+    };
+    for (let index = cursor; index <= end; index += 1) result.set(sorted[index], sequence);
+    cursor = end + 1;
+  }
+
+  return result;
+}
+
+/** Analyze all names together and select the most likely continuous number in each file. */
+export function analyzeEpisodes(files: { name: string; path: string }[]): FileItem[] {
+  if (files.length === 0) return [];
+
+  const items: FileItem[] = files.map(file => ({
+    ...file,
     candidates: extractCandidates(file.name),
     bestNumber: NaN,
     finalNumberStr: '',
   }));
 
-  // 2. 统计每个整数值在所有文件中的出现频次（重复率）
   const valueFileCount = new Map<number, number>();
-  for (const item of fileItems) {
-    const seen = new Set<number>();
-    for (const c of item.candidates) {
-      if (!c.isFloat) {
-        seen.add(c.value);
-      }
-    }
-    for (const v of seen) {
-      valueFileCount.set(v, (valueFileCount.get(v) || 0) + 1);
-    }
-  }
+  const styledValueFileCount = new Map<string, number>();
+  for (const item of items) {
+    const values = new Set(
+      item.candidates.filter(candidate => !candidate.isFloat).map(candidate => candidate.value)
+    );
+    for (const value of values) valueFileCount.set(value, (valueFileCount.get(value) ?? 0) + 1);
 
-  // 3. 构建连续整数序列，记录各整数所在序列长度
-  const allIntSet = new Set<number>();
-  for (const item of fileItems) {
-    for (const c of item.candidates) {
-      if (!c.isFloat && Number.isInteger(c.value)) {
-        allIntSet.add(c.value);
-      }
+    const styledValues = new Set(
+      item.candidates
+        .filter(candidate => !candidate.isFloat)
+        .map(candidate => `${candidate.value}:${candidateStyle(candidate)}`)
+    );
+    for (const key of styledValues) {
+      styledValueFileCount.set(key, (styledValueFileCount.get(key) ?? 0) + 1);
     }
   }
 
-  const sortedInts = Array.from(allIntSet).sort((a, b) => a - b);
-  const seqLenOf = new Map<number, number>();
-  let i = 0;
-  while (i < sortedInts.length) {
-    let j = i;
-    while (j + 1 < sortedInts.length && sortedInts[j + 1] === sortedInts[j] + 1) {
-      j++;
-    }
-    const len = j - i + 1;
-    for (let k = i; k <= j; k++) {
-      seqLenOf.set(sortedInts[k], len);
-    }
-    i = j + 1;
-  }
+  const sequences = buildSequences(valueFileCount.keys());
 
-  // 4. 对每个文件的整数候选分别计算置信度，取最高分者为 bestNumber
-  for (const item of fileItems) {
-    const intCandidates = item.candidates.filter(c => !c.isFloat);
-    if (intCandidates.length === 0) {
-      item.bestNumber = NaN;
-      continue;
-    }
-
-    // 剥离扩展名
-    const dotIdx = item.name.lastIndexOf('.');
-    const nameWithoutExt = dotIdx > 0 ? item.name.substring(0, dotIdx) : item.name;
-
-    let maxConf = -Infinity;
-    let selected = NaN;
-    let selectedIndex = Infinity;
-
-    for (const cand of intCandidates) {
-      let conf = 100; // 基础分数
-
-      // (A) 重复率惩罚：出现率 >= 30% 时触发
-      const count = valueFileCount.get(cand.value) || 0;
-      const repeatRate = count / N;
-      if (repeatRate >= 0.3) {
-        conf -= repeatRate * 120;
-      }
-
-      // (B) 连续性奖励
-      const seqLen = seqLenOf.get(cand.value) || 0;
-      if (seqLen >= 2) {
-        conf += seqLen * 50;
-      }
-
-      // (C) 特征词奖励
-      const prefix = nameWithoutExt.substring(0, cand.index);
-      const suffix = nameWithoutExt.substring(cand.index + cand.raw.length);
-
-      let hasFeature = false;
-      // 前缀匹配 E, EP, SP, CH, CAP, X 等
-      if (/(\b|[^a-zA-Z])(ep|e|sp|x|ch|cap)\.?$/i.test(prefix)) {
-        conf += 50;
-        hasFeature = true;
-      }
-      // 前缀匹配 “第”
-      if (/第$/i.test(prefix)) {
-        conf += 50;
-        hasFeature = true;
-      }
-      // 后缀匹配 “集”、“话”、“期”、“页”、“回”、“v” 等
-      if (/^(集|话|期|页|回|v|ep|episode|chapter)/i.test(suffix)) {
-        conf += 50;
-        hasFeature = true;
-      }
-      // 包裹检查 [] () 【】
-      if (
-        (/\[$/i.test(prefix) && /^\]/i.test(suffix)) ||
-        (/\($/i.test(prefix) && /^\)/i.test(suffix)) ||
-        (/【$/i.test(prefix) && /^】/i.test(suffix))
-      ) {
-        conf += 30;
-        hasFeature = true;
-      }
-
-      // 如果没有任何集数特征词，且它是高频重复的年份或分辨率，进行强力扣分
-      if (!hasFeature && (cand.value >= 1900 || cand.value === 1080 || cand.value === 720 || cand.value === 2160)) {
-        conf -= 150;
-      }
-
-      // 择优选择 (置信度大优先，置信度相同位置早优先)
-      if (conf > maxConf || (conf === maxConf && cand.index < selectedIndex)) {
-        maxConf = conf;
-        selected = cand.value;
-        selectedIndex = cand.index;
-      }
-    }
-
-    item.bestNumber = selected;
-  }
-
-  // 5. 冲突消歧 (处理多个文件同序号的情况，回查 n.n)
-  const groups = new Map<number, FileItem[]>();
-  for (const item of fileItems) {
-    if (isNaN(item.bestNumber)) continue;
-    const key = item.bestNumber;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(item);
-  }
-
-  for (const [baseNum, group] of groups) {
-    if (group.length <= 1) continue;
-
-    let allResolved = true;
-    const floatAssignments = new Map<FileItem, number>();
-
-    for (const item of group) {
-      // 查找整数部分为 baseNum 的浮点数候选
-      const floatCands = item.candidates.filter(
-        c => c.isFloat && c.intPart === baseNum
-      );
-      if (floatCands.length > 0) {
-        floatAssignments.set(item, floatCands[0].value);
-      } else {
-        allResolved = false;
-      }
-    }
-
-    if (allResolved) {
-      const floatValues = new Set(floatAssignments.values());
-      if (floatValues.size === group.length) {
-        for (const [item, fv] of floatAssignments) {
-          item.bestNumber = fv;
-        }
-      }
+  // Count how much of each continuous sequence is represented in the same notation.
+  // This separates a real padded/plain track from isolated numbers in titles and adverts.
+  const styleValues = new Map<string, Set<number>>();
+  for (const item of items) {
+    for (const candidate of item.candidates) {
+      if (candidate.isFloat) continue;
+      const sequence = sequences.get(candidate.value)!;
+      const key = `${sequence.start}:${sequence.end}:${candidateStyle(candidate)}`;
+      if (!styleValues.has(key)) styleValues.set(key, new Set());
+      styleValues.get(key)!.add(candidate.value);
     }
   }
 
-  return fileItems;
+  for (const item of items) {
+    const decimalTailIndexes = new Set(
+      item.candidates
+        .filter(candidate => candidate.isFloat)
+        .map(candidate => candidate.index + candidate.raw.indexOf('.') + 1)
+    );
+    const integerCandidates = item.candidates.filter(candidate =>
+      !candidate.isFloat && !decimalTailIndexes.has(candidate.index)
+    );
+    let winner: Candidate | undefined;
+    let winnerScore = -Infinity;
+
+    for (const candidate of integerCandidates) {
+      const sequence = sequences.get(candidate.value)!;
+      const repetitionKey = `${candidate.value}:${candidateStyle(candidate)}`;
+      const fileCount = styledValueFileCount.get(repetitionKey) ?? 1;
+      const repeatRate = fileCount / items.length;
+      const styleKey = `${sequence.start}:${sequence.end}:${candidateStyle(candidate)}`;
+      const styleCoverage = styleValues.get(styleKey)?.size ?? 1;
+
+      // Continuity deliberately dominates. Repetition only becomes a strong negative
+      // at the requested 30% threshold; below that it remains a gentle tie-breaker.
+      let score = sequence.length * 10_000;
+      score += styleCoverage * 100;
+      score -= Math.max(0, fileCount - 1) * 5;
+      if (repeatRate >= 0.3) score -= repeatRate * sequence.length * 20_000;
+
+      // Prefer the earlier occurrence only after global evidence is exhausted.
+      score -= candidate.index / Math.max(1, item.name.length);
+
+      if (score > winnerScore) {
+        winner = candidate;
+        winnerScore = score;
+      }
+    }
+
+    item.bestNumber = winner?.value ?? NaN;
+  }
+
+  resolveExplicitSubNumbers(items);
+  return items;
 }
 
-/**
- * 格式化序号，根据指定的补零位数进行补全
- */
-export function formatEpisodeNumber(num: number, paddingWidth: number): string {
-  if (isNaN(num)) return '';
-
-  const isFloat = num % 1 !== 0;
-  if (!isFloat) {
-    return num.toString().padStart(paddingWidth, '0');
-  } else {
-    const parts = num.toString().split('.');
-    const integerPart = parts[0].padStart(paddingWidth, '0');
-    const decimalPart = parts[1];
-    return `${integerPart}.${decimalPart}`;
+function resolveExplicitSubNumbers(items: FileItem[]): void {
+  const groups = new Map<number, FileItem[]>();
+  for (const item of items) {
+    if (!Number.isInteger(item.bestNumber)) continue;
+    const group = groups.get(item.bestNumber) ?? [];
+    group.push(item);
+    groups.set(item.bestNumber, group);
   }
+
+  for (const [base, group] of groups) {
+    if (group.length < 2) continue;
+    const assignments = group.map(item =>
+      item.candidates.find(candidate => candidate.isFloat && candidate.intPart === base)
+    );
+    const counts = new Map<number, number>();
+    for (const candidate of assignments) {
+      if (candidate) counts.set(candidate.value, (counts.get(candidate.value) ?? 0) + 1);
+    }
+
+    // A plain 001 may coexist with 001.1. Only the latter is changed, because
+    // the sub-number must be present in that file's original name.
+    group.forEach((item, index) => {
+      const candidate = assignments[index];
+      if (candidate && counts.get(candidate.value) === 1) item.bestNumber = candidate.value;
+    });
+  }
+}
+
+export function formatEpisodeNumber(num: number, paddingWidth: number): string {
+  if (!Number.isFinite(num)) return '';
+  const [integer, decimal] = String(num).split('.');
+  const padded = integer.padStart(paddingWidth, '0');
+  return decimal === undefined ? padded : `${padded}.${decimal}`;
 }

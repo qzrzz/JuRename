@@ -454,7 +454,7 @@ export const App: React.FC = () => {
               id="input-search"
             />
             {searchResults.length > 0 && (
-              <span style={{ fontSize: '0.75rem', color: 'var(--accent-gold)' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--accent-green)' }}>
                 {currentSearchIndex + 1}/{searchResults.length}
               </span>
             )}

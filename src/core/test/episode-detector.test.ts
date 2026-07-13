@@ -1,4 +1,5 @@
 import { chineseToNumber, extractCandidates, analyzeEpisodes, formatEpisodeNumber } from '../episode-detector';
+import { readFileSync } from 'node:fs';
 
 describe('剧集智能识别核心算法测试', () => {
 
@@ -9,6 +10,9 @@ describe('剧集智能识别核心算法测试', () => {
     expect(chineseToNumber('一百零五')).toBe(105);
     expect(chineseToNumber('第十四')).toBe(14);
     expect(chineseToNumber('九百九十九')).toBe(999);
+    expect(chineseToNumber('贰仟零伍')).toBe(2005);
+    expect(chineseToNumber('二〇二六')).toBe(2026);
+    expect(chineseToNumber('一亿零二万')).toBe(100020000);
   });
 
   test('提取文件名中的整数和浮点候选', () => {
@@ -88,6 +92,16 @@ describe('剧集智能识别核心算法测试', () => {
     expect(results[1].bestNumber).toBe(1);
   });
 
+  test('原文件名中 001.1 可与 001 共存', () => {
+    const results = analyzeEpisodes([
+      { name: 'demo-001.1.mkv', path: '/1.1' },
+      { name: 'demo-001.mkv', path: '/1' },
+      { name: 'demo-002.mkv', path: '/2' },
+    ]);
+
+    expect(results.map(item => item.bestNumber)).toEqual([1.1, 1, 2]);
+  });
+
   test('纯数字文件名能正确识别连续序号', () => {
     const files = Array.from({ length: 12 }, (_, i) => ({
       name: `[SubGroup] Anime - ${String(i + 1).padStart(2, '0')} [720p].mkv`,
@@ -127,6 +141,23 @@ describe('剧集智能识别核心算法测试', () => {
     expect(results[4].bestNumber).toBe(5);
     expect(results[5].bestNumber).toBe(6);
     expect(results[6].bestNumber).toBe(7);
+  });
+
+  test('sample.txt 的完整连续序号轨道', () => {
+    const names = readFileSync(new URL('./sample.txt', import.meta.url), 'utf8')
+      .split(/\r?\n/)
+      .filter(Boolean);
+    const results = analyzeEpisodes(names.map((name, index) => ({ name, path: `/${index}` })));
+
+    let checked = 0;
+    for (const result of results) {
+      const expected = result.name.match(/太莽(\d+)/);
+      if (!expected) continue;
+      expect(result.bestNumber, result.name).toBe(Number(expected[1]));
+      checked += 1;
+    }
+
+    expect(checked).toBe(1130);
   });
 
 });
