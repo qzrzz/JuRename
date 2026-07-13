@@ -1,28 +1,29 @@
 :root {
-  --bg-main: #0a0d0c; /* 微带绿意的深邃黑色 */
-  --bg-card: rgba(16, 22, 19, 0.65); /* 磨砂玻璃绿灰卡片 */
+  --bg-main: #0c0f0e; /* 极简低饱和度墨绿灰背景 */
+  --bg-card: rgba(18, 24, 21, 0.6); /* 磨砂玻璃灰绿卡片 */
   --bg-hover: rgba(255, 255, 255, 0.04);
-  --border-color: rgba(255, 255, 255, 0.06);
-  --border-focus: rgba(127, 169, 155, 0.5); /* 莫兰迪绿聚焦 */
-  --text-primary: #f4f4f5;
-  --text-secondary: #9aa8a3; /* 灰绿文字 */
+  --border-color: rgba(255, 255, 255, 0.05);
+  --border-focus: rgba(127, 169, 155, 0.5); /* 鼠尾草绿聚焦 */
+  --text-primary: #e4e4e7;
+  --text-secondary: #8e9c96; /* 低饱和灰绿文字 */
   
-  --accent-green: #7fa99b; /* 雅致鼠尾草绿 */
+  --accent-green: #7fa99b; /* 莫兰迪鼠尾草绿 */
   --accent-green-rgb: 127, 169, 155;
   --accent-green-hover: #a2c4b9;
-  --accent-purple: #7e57c2; /* 柔和紫 */
+  --accent-purple: #7e57c2;
   --accent-purple-rgb: 126, 87, 194;
-  --accent-glow: rgba(127, 169, 155, 0.12);
+  --accent-glow: rgba(127, 169, 155, 0.1);
   --error: #ef4444;
   --error-bg: rgba(239, 68, 68, 0.08);
   --success: #10b981;
   --success-bg: rgba(16, 185, 129, 0.08);
   
-  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --border-radius-sm: 6px;
-  --border-radius-md: 10px;
-  --border-radius-lg: 16px;
-  --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  /* 苹果系统默认字体集 */
+  --font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Icons", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --border-radius-sm: 4px;
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+  --transition-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 * {
@@ -33,10 +34,11 @@
 
 body {
   font-family: var(--font-family);
+  font-size: 12px; /* 与 macOS 默认系统字体大小对齐 */
   background-color: var(--bg-main);
   background-image: 
-    radial-gradient(at 0% 0%, rgba(var(--accent-purple-rgb), 0.05) 0px, transparent 50%),
-    radial-gradient(at 100% 100%, rgba(var(--accent-green-rgb), 0.07) 0px, transparent 50%);
+    radial-gradient(at 0% 0%, rgba(var(--accent-purple-rgb), 0.04) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(var(--accent-green-rgb), 0.06) 0px, transparent 50%);
   color: var(--text-primary);
   height: 100vh;
   width: 100vw;
@@ -44,81 +46,71 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* 主容器布局 - 窗口应用专门优化 */
+/* 主容器布局 - 窗口与空隙支持全局拖动 */
 #root, .app-container {
   display: flex;
   flex-direction: column;
   height: 100vh;
   width: 100vw;
-  padding: 44px 20px 20px 20px; /* 顶部留空 44px，用于交通灯和窗口拖拽 */
-  gap: 16px;
+  padding: 12px 14px 14px 14px; /* 紧凑级外边距 */
+  gap: 10px;
   position: relative;
+  -webkit-app-region: drag; /* 默认整个应用背景与空白区域支持拖拽移动 */
 }
 
-/* 顶部透明窗口拖拽条 (无原生标题栏应用优化) */
-.app-container::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 44px;
-  -webkit-app-region: drag; /* 标记为窗口可拖拽区域 */
-  z-index: 99999;
-}
-
-/* 头部控制栏 - 设置 no-drag 避免阻碍正常点击 */
+/* 头部控制栏 - 左侧加宽让出交通灯 */
 .header-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 14px 20px;
+  gap: 14px;
+  padding: 10px 14px 10px 76px; /* 左侧留空 76px 给 macOS 交通灯控制按钮 */
   background: var(--bg-card);
   backdrop-filter: blur(20px);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-lg);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.25);
-  -webkit-app-region: no-drag; /* 头部内容区域正常接收鼠标事件 */
-  position: relative;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  -webkit-app-region: drag; /* 头部栏空白背景本身支持拖动 */
   z-index: 10;
 }
 
 .header-title-section {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
+  -webkit-app-region: drag; /* 标题文字区域亦可拖拽 */
 }
 
 .header-title {
-  font-size: 1.3rem;
+  font-size: 12px; /* 和系统字体保持一致 */
   font-weight: 700;
-  letter-spacing: -0.5px;
-  background: linear-gradient(135deg, var(--text-primary) 30%, var(--accent-green) 100%);
+  letter-spacing: -0.2px;
+  background: linear-gradient(135deg, var(--text-primary) 40%, var(--accent-green) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .header-subtitle {
-  font-size: 0.78rem;
+  font-size: 10px;
   color: var(--text-secondary);
 }
 
 .controls-wrapper {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
+  -webkit-app-region: no-drag; /* 控件区不允许拖拽 */
 }
 
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 8px 14px;
-  font-size: 0.88rem;
+  gap: 6px;
+  padding: 5px 11px;
+  font-size: 11px;
   font-weight: 500;
-  border-radius: var(--border-radius-md);
+  border-radius: var(--border-radius-sm);
   border: 1px solid var(--border-color);
   background: rgba(255, 255, 255, 0.02);
   color: var(--text-primary);
@@ -128,8 +120,7 @@ body {
 
 .btn:hover {
   background: var(--bg-hover);
-  border-color: rgba(255, 255, 255, 0.15);
-  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .btn-primary {
@@ -142,28 +133,28 @@ body {
   background: linear-gradient(135deg, rgba(var(--accent-green-rgb), 0.12) 0%, rgba(var(--accent-green-rgb), 0.24) 100%);
   border-color: var(--accent-green-hover);
   color: var(--accent-green-hover);
-  box-shadow: 0 0 10px var(--accent-glow);
+  box-shadow: 0 0 8px var(--accent-glow);
 }
 
 /* 输入框组合 */
 .input-group {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   background: rgba(0, 0, 0, 0.2);
   border: 1px solid var(--border-color);
-  padding: 6px 12px;
-  border-radius: var(--border-radius-md);
+  padding: 4px 10px;
+  border-radius: var(--border-radius-sm);
   transition: var(--transition-smooth);
 }
 
 .input-group:focus-within {
   border-color: var(--border-focus);
-  box-shadow: 0 0 8px var(--accent-glow);
+  box-shadow: 0 0 6px var(--accent-glow);
 }
 
 .input-label {
-  font-size: 0.75rem;
+  font-size: 10px;
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -173,23 +164,18 @@ body {
   background: transparent;
   border: none;
   color: var(--text-primary);
-  font-size: 0.88rem;
+  font-size: 11px;
   outline: none;
   font-family: inherit;
 }
 
-.input-width-sm {
-  width: 36px;
-  text-align: center;
-}
-
 .input-width-md {
-  width: 50px;
+  width: 44px;
   text-align: center;
 }
 
 .search-field {
-  width: 130px;
+  width: 120px;
 }
 
 /* 文件列表容器与拖拽区 */
@@ -201,23 +187,25 @@ body {
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-lg);
   overflow: hidden;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  -webkit-app-region: no-drag; /* 列表容器内不拦截常规操作，除了空状态的 dropzone */
 }
 
-/* 拖拽放置区 */
+/* 拖拽放置区 - 空白时支持拖动窗口 */
 .dropzone {
   position: absolute;
-  inset: 12px;
-  border: 2px dashed rgba(255, 255, 255, 0.1);
+  inset: 10px;
+  border: 1.5px dashed rgba(255, 255, 255, 0.08);
   border-radius: var(--border-radius-md);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 16px;
+  gap: 12px;
   transition: var(--transition-smooth);
-  cursor: pointer;
-  background: rgba(255, 255, 255, 0.005);
+  cursor: default;
+  background: rgba(255, 255, 255, 0.003);
+  -webkit-app-region: drag; /* 空列表时，整个区域支持拖拽移动窗口 */
 }
 
 .dropzone.drag-active {
@@ -227,28 +215,30 @@ body {
 }
 
 .dropzone-icon {
-  font-size: 3rem;
+  font-size: 2.4rem;
   color: var(--accent-green);
   filter: drop-shadow(0 0 8px var(--accent-glow));
-  opacity: 0.8;
+  opacity: 0.75;
   transition: var(--transition-smooth);
-  const-size: 3rem;
+  -webkit-app-region: no-drag;
 }
 
 .dropzone.drag-active .dropzone-icon {
-  transform: scale(1.1);
+  transform: scale(1.05);
   opacity: 1;
 }
 
 .dropzone-text {
-  font-size: 1.05rem;
+  font-size: 11px;
   font-weight: 500;
   color: var(--text-primary);
+  -webkit-app-region: no-drag;
 }
 
 .dropzone-subtext {
-  font-size: 0.82rem;
+  font-size: 10px;
   color: var(--text-secondary);
+  -webkit-app-region: no-drag;
 }
 
 /* 虚拟列表项目样式 */
@@ -257,6 +247,7 @@ body {
   height: 100%;
   overflow-y: auto;
   position: relative;
+  -webkit-app-region: no-drag; /* 阻止滚动区域被拖动截断 */
 }
 
 .list-item-wrapper {
@@ -265,9 +256,10 @@ body {
   right: 0;
   display: flex;
   align-items: center;
-  padding: 0 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+  padding: 0 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.015);
   transition: background-color 0.15s ease;
+  -webkit-app-region: no-drag;
 }
 
 .list-item-wrapper:hover {
@@ -279,20 +271,22 @@ body {
   display: flex;
   align-items: center;
   width: 100%;
-  gap: 14px;
+  gap: 12px;
+  -webkit-app-region: no-drag;
 }
 
 .checkbox-custom {
   position: relative;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border: 1px solid var(--text-secondary);
-  border-radius: 4px;
+  border-radius: 3px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: var(--transition-smooth);
+  -webkit-app-region: no-drag;
 }
 
 .checkbox-custom.checked {
@@ -302,19 +296,20 @@ body {
 
 .checkbox-custom.checked::after {
   content: "";
-  width: 8px;
-  height: 4px;
-  border-left: 2px solid var(--bg-main);
-  border-bottom: 2px solid var(--bg-main);
+  width: 7px;
+  height: 3px;
+  border-left: 1.5px solid var(--bg-main);
+  border-bottom: 1.5px solid var(--bg-main);
   transform: rotate(-45deg) translate(1px, -1px);
 }
 
 .file-name-text {
-  font-size: 0.92rem;
+  font-size: 12px; /* 和 macOS 系统字体大小一致 */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--text-primary);
+  -webkit-app-region: no-drag;
 }
 
 /* 新文件名中的高亮部分 */
@@ -322,22 +317,11 @@ body {
   font-weight: 700;
   color: var(--accent-green);
   text-shadow: 0 0 6px var(--accent-glow);
-  padding: 1px 4px;
+  padding: 1px 3px;
   background: rgba(var(--accent-green-rgb), 0.1);
-  border-radius: 4px;
+  border-radius: 3px;
   border: 1px solid rgba(var(--accent-green-rgb), 0.15);
   margin-right: 4px;
-}
-
-.old-name-tag {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  margin-left: auto;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 35%;
-  opacity: 0.55;
 }
 
 /* 缺失提示行 */
@@ -348,23 +332,24 @@ body {
   height: 100%;
   background: var(--error-bg);
   border-left: 3px solid var(--error);
-  padding-left: 12px;
+  padding-left: 10px;
   border-radius: 4px;
+  -webkit-app-region: no-drag;
 }
 
 .missing-text {
-  font-size: 0.82rem;
+  font-size: 11px;
   color: var(--error);
   font-weight: 600;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.2px;
 }
 
-/* 底部区域（序号信息栏 + 重命名按钮） */
+/* 底部区域 */
 .footer-section {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 14px;
   -webkit-app-region: no-drag;
 }
 
@@ -373,39 +358,40 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 14px 20px;
+  gap: 6px;
+  padding: 10px 14px;
   background: var(--bg-card);
   backdrop-filter: blur(20px);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-lg);
+  -webkit-app-region: no-drag;
 }
 
 .info-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-size: 0.82rem;
+  gap: 10px;
+  font-size: 11px;
 }
 
 .info-label {
   color: var(--text-secondary);
   font-weight: 500;
-  min-width: 64px;
+  min-width: 58px;
 }
 
 .pills-container {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
 }
 
 .pill {
-  padding: 3px 9px;
-  font-size: 0.78rem;
+  padding: 2px 8px;
+  font-size: 10px;
   font-weight: 600;
-  border-radius: 20px;
-  cursor: pointer;
+  border-radius: 12px;
+  cursor: default;
   transition: var(--transition-smooth);
   border: 1px solid transparent;
 }
@@ -418,8 +404,6 @@ body {
 
 .pill-success:hover {
   background: rgba(16, 185, 129, 0.12);
-  box-shadow: 0 0 6px rgba(16, 185, 129, 0.15);
-  transform: translateY(-1px);
 }
 
 .pill-danger {
@@ -430,28 +414,27 @@ body {
 
 .pill-danger:hover {
   background: rgba(239, 68, 68, 0.12);
-  box-shadow: 0 0 6px rgba(239, 68, 68, 0.15);
-  transform: translateY(-1px);
 }
 
-/* 大大的重命名按钮 */
+/* 紧凑精致的重命名按钮 */
 .btn-rename-giant {
-  padding: 18px 40px;
-  font-size: 1.15rem;
-  font-weight: 700;
+  padding: 12px 28px;
+  font-size: 13px;
+  font-weight: 600;
   border-radius: var(--border-radius-lg);
   background: linear-gradient(135deg, var(--accent-green) 0%, #52786a 100%);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #0d1210; /* 深绿黑文本 */
+  color: #0c0f0e;
   cursor: pointer;
   transition: var(--transition-smooth);
-  box-shadow: 0 8px 24px rgba(var(--accent-green-rgb), 0.15);
-  letter-spacing: 1px;
+  box-shadow: 0 4px 12px rgba(var(--accent-green-rgb), 0.15);
+  letter-spacing: 0.5px;
+  -webkit-app-region: no-drag;
 }
 
 .btn-rename-giant:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 30px rgba(var(--accent-green-rgb), 0.3), 0 0 16px rgba(var(--accent-green-rgb), 0.2);
+  transform: translateY(-1.5px);
+  box-shadow: 0 6px 16px rgba(var(--accent-green-rgb), 0.25), 0 0 10px rgba(var(--accent-green-rgb), 0.15);
   background: linear-gradient(135deg, var(--accent-green-hover) 0%, var(--accent-green) 100%);
 }
 
@@ -460,16 +443,16 @@ body {
 }
 
 .btn-rename-giant:disabled {
-  opacity: 0.35;
+  opacity: 0.3;
   cursor: not-allowed;
   box-shadow: none;
-  background: #222524;
-  color: #555d5a;
+  background: #202322;
+  color: #4f5854;
 }
 
 /* 滚动条定制 */
 .virtual-list-viewport::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 
 .virtual-list-viewport::-webkit-scrollbar-track {
@@ -477,12 +460,12 @@ body {
 }
 
 .virtual-list-viewport::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 2px;
 }
 
 .virtual-list-viewport::-webkit-scrollbar-thumb:hover {
-  background: rgba(var(--accent-green-rgb), 0.25);
+  background: rgba(var(--accent-green-rgb), 0.2);
 }
 
 /* 搜索高亮动效 */
@@ -496,8 +479,8 @@ body {
     box-shadow: 0 0 4px rgba(var(--accent-green-rgb), 0.08);
   }
   100% {
-    background-color: rgba(var(--accent-green-rgb), 0.2);
-    box-shadow: 0 0 10px rgba(var(--accent-green-rgb), 0.2);
+    background-color: rgba(var(--accent-green-rgb), 0.18);
+    box-shadow: 0 0 8px rgba(var(--accent-green-rgb), 0.18);
   }
 }
 
@@ -505,47 +488,47 @@ body {
 .drag-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(9, 13, 11, 0.88);
-  backdrop-filter: blur(16px);
+  background: rgba(9, 13, 11, 0.85);
+  backdrop-filter: blur(12px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 99999;
   pointer-events: none;
-  animation: fadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-  border: 2px dashed var(--accent-green);
-  margin: 12px;
+  animation: fadeIn 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  border: 1.5px dashed var(--accent-green);
+  margin: 10px;
   border-radius: var(--border-radius-lg);
   box-shadow: 
-    0 0 50px rgba(var(--accent-green-rgb), 0.15),
-    inset 0 0 30px rgba(var(--accent-green-rgb), 0.1);
+    0 0 40px rgba(var(--accent-green-rgb), 0.12),
+    inset 0 0 20px rgba(var(--accent-green-rgb), 0.08);
 }
 
 .drag-overlay-card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
-  transform: scale(0.92);
-  animation: scaleIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  gap: 16px;
+  transform: scale(0.95);
+  animation: scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
 .drag-overlay-icon {
-  font-size: 4.5rem;
-  filter: drop-shadow(0 0 20px rgba(var(--accent-green-rgb), 0.35));
+  font-size: 3.6rem;
+  filter: drop-shadow(0 0 16px rgba(var(--accent-green-rgb), 0.3));
   animation: bounceFloat 2s infinite ease-in-out;
 }
 
 .drag-overlay-text {
-  font-size: 1.5rem;
+  font-size: 1.35rem;
   font-weight: 700;
   color: var(--accent-green);
-  text-shadow: 0 0 12px var(--accent-glow);
-  letter-spacing: 0.5px;
+  text-shadow: 0 0 10px var(--accent-glow);
+  letter-spacing: 0.2px;
 }
 
 .drag-overlay-subtext {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: var(--text-secondary);
 }
 
@@ -560,5 +543,5 @@ body {
 
 @keyframes bounceFloat {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-14px); }
+  50% { transform: translateY(-10px); }
 }

@@ -15,7 +15,18 @@ type MixListItem =
 
 export const App: React.FC = () => {
   const [files, setFiles] = useState<DisplayFileItem[]>([]);
-  const [paddingWidth, setPaddingWidth] = useState<number>(2);
+  // 自动根据所有有效集数中最大的整数长度来决定补零宽度，最小 2 位
+  const paddingWidth = useMemo(() => {
+    if (files.length === 0) return 2;
+    let maxVal = 0;
+    for (const f of files) {
+      if (!isNaN(f.bestNumber)) {
+        const intPart = Math.floor(f.bestNumber);
+        if (intPart > maxVal) maxVal = intPart;
+      }
+    }
+    return Math.max(2, maxVal.toString().length);
+  }, [files]);
   const [separator, setSeparator] = useState<string>(' - ');
   const [keyword, setKeyword] = useState<string>('');
   
@@ -374,9 +385,6 @@ export const App: React.FC = () => {
           )}
           {file.name}
         </div>
-        <div className="old-name-tag">
-          {file.name}
-        </div>
       </div>
     );
   };
@@ -409,27 +417,7 @@ export const App: React.FC = () => {
         </div>
 
         <div className="controls-wrapper">
-          {/* 文件导入按钮 */}
-          <button className="btn" onClick={handleSelectFiles} id="btn-import-files">
-            选择文件
-          </button>
-          <button className="btn" onClick={handleSelectDirectory} id="btn-import-dir">
-            选择文件夹
-          </button>
 
-          {/* 补零位数 */}
-          <div className="input-group">
-            <span className="input-label">补零位数</span>
-            <input 
-              type="number"
-              min="1"
-              max="9"
-              className="input-field input-width-sm"
-              value={paddingWidth}
-              onChange={e => setPaddingWidth(Math.max(1, parseInt(e.target.value, 10) || 1))}
-              id="input-padding"
-            />
-          </div>
 
           {/* 分隔符 */}
           <div className="input-group">
