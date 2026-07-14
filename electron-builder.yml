@@ -15,7 +15,7 @@ mac:
     - zip
 win:
   target:
-    - nsis
+    - zip
     - zip
 linux:
   category: Utility
@@ -23,6 +23,3 @@ linux:
     - AppImage
     - deb
     - rpm
-nsis:
-  oneClick: false
-  allowToChangeInstallationDirectory: true

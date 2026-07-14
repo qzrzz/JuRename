@@ -152,7 +152,7 @@ APPLE_TEAM_ID='TEAMID'
 bun run dist:all
 ```
 
-该命令会在本机生成并签名、公证 macOS 的 DMG 与 ZIP；再通过 Docker 生成 Windows 的 NSIS 安装程序和 Linux 的 AppImage、DEB、RPM。产物位于 `release/`。
+该命令会在本机生成并签名、公证 macOS 的 DMG 与 ZIP；再通过 Docker 生成 Windows ZIP 和 Linux 的 AppImage、DEB、RPM。产物位于 `release/`。
 
 发布新版本会递增版本号、构建三个平台、推送 Git tag，并用已登录的 GitHub CLI 创建 Release 和上传全部产物：
 
