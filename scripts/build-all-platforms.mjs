@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 
 const projectName = 'jurename-builder-node-modules';
-const minimumDockerMemory = 6 * 1024 ** 3;
+const minimumDockerMemory = 3 * 1024 ** 3;
 
 const run = (command, args) => {
   const result = spawnSync(command, args, { stdio: 'inherit' });
