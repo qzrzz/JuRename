@@ -17,6 +17,7 @@ A剧略 2021 略 7 略-02.m4a
 特殊A剧略略略 3.m4a
 A剧咯咯咯-4 (2).m4a
 ```
+
 识别到正确序号，添加到开头：
 
 ```shell
@@ -25,7 +26,6 @@ A剧咯咯咯-4 (2).m4a
 03-特殊A剧略略略 3.m4a
 04-A剧咯咯咯-4 (2).m4a
 ```
-
 
 这年头批量重命名让 AI Agent 完成不就行了吗？其实还是不太行，首先就是速度慢，让
 Agent 读 Nas 上的大量文件并且识别序号实在是太慢了，并且其实不太稳定，有可能会出错，
@@ -101,3 +101,57 @@ App 来操作才是更好的方案。
 
 - 最后看每个文件是否有重复的序号，然后检查是否有 n.n 的同序号文件名，要支持 n.n，如果 001.1 和 001. 注意着要在原文件名中看是否有 n.n 的规则，而不是把重复序号强行加.n
 ```
+
+## 开发
+
+项目使用 [Bun](https://bun.sh/) 管理依赖和运行脚本。
+
+```bash
+# 安装依赖
+bun install
+
+# 启动桌面应用开发环境
+bun run start
+
+# 运行测试
+bun run test
+```
+
+### 构建桌面应用
+
+```bash
+# 打包当前平台的应用
+bun run package
+
+# 生成可分发安装包
+bun run make
+```
+
+### 构建官网与 GitHub Pages
+
+官网源文件位于 `website/`，使用 Vite 构建。构建产物会生成到 `docs/`，该目录可直接设为 GitHub Pages 的发布目录。
+
+```bash
+# 启动官网本地开发服务器
+bun run website:dev
+
+# 生成 GitHub Pages 静态文件到 docs/
+bun run website:build
+```
+
+在 GitHub 仓库的 Pages 设置中，选择从当前分支的 `/docs` 目录部署即可。
+
+### 发布 GitHub Release
+
+发布流程会根据 `package.json` 的 `version`，构建 macOS、Windows 和 Linux 的安装包，再将全部产物发布到同名的 GitHub Release。
+
+1. 将 `package.json` 中的 `version` 更新为待发布版本，例如 `1.1.0`。
+2. 提交并推送版本更新。
+3. 创建并推送同版本标签：
+
+```bash
+git tag v1.1.0
+git push origin v1.1.0
+```
+
+标签必须严格等于 `v` 加 `package.json` 版本号（例如 `v1.1.0`）。版本不一致时，发布流程会停止，避免误发布。
