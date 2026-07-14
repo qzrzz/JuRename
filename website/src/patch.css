@@ -7,6 +7,76 @@
   letter-spacing: -0.45px;
 }
 
+.nav-cta img,
+.nav-social img,
+.social-icon,
+.footer-socials img {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.nav-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.nav-cta span {
+  margin-left: 1px;
+}
+
+.nav-social {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+
+.nav-social:hover {
+  border-color: rgba(153, 219, 191, .42);
+}
+
+.button .social-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.footer-meta strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.footer-socials {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-left: auto;
+}
+
+.footer-socials a,
+footer .footer-socials a:last-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: 0;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.footer-socials a:hover {
+  color: var(--ink);
+}
+
+@media (max-width: 760px) {
+  .footer-socials {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
 h1 {
   font-size: clamp(46px, 4.1vw, 66px);
   line-height: 1.08;

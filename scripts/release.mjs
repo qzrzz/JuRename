@@ -40,7 +40,8 @@ if (artifacts.length === 0) {
 run('git', ['add', 'package.json', 'docs']);
 run('git', ['commit', '-m', `chore(release): v${version}`]);
 run('git', ['tag', `v${version}`]);
-run('git', ['push', '--follow-tags']);
+const branch = getOutput('git', ['branch', '--show-current']);
+run('git', ['push', 'origin', branch, `refs/tags/v${version}`]);
 
 run('gh', [
   'release', 'create', `v${version}`, ...artifacts,

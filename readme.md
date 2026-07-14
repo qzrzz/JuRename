@@ -202,4 +202,4 @@ bun run release -- minor
 bun run release -- major
 ```
 
-脚本会由 `npm version` 创建 `v` 加版本号的标签（例如 `v1.1.0`），并将该标签推送到远程仓库。GitHub Actions 随后验证标签与 `package.json` 版本一致，再构建和发布。
+脚本会创建 `v` 加版本号的标签（例如 `v1.1.0`），并显式将当前分支与该标签推送到远程仓库。GitHub Actions 随后验证标签与 `package.json` 版本一致，再构建和发布。
