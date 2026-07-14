@@ -1,7 +1,7 @@
 {
   "name": "jurename",
   "productName": "JuRename",
-  "version": "1.0.22",
+  "version": "1.0.23",
   "description": "My Electron application description",
   "homepage": "https://github.com/qzrzz/JuRename",
   "desktopName": "jurename",
