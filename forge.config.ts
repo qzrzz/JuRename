@@ -9,6 +9,9 @@ import { FuseV1Options, FuseVersion } from '@electron/fuses';
 
 const config: ForgeConfig = {
   packagerConfig: {
+    // Keep the user-visible bundle and executable name stable across platforms.
+    name: 'JuRename',
+    executableName: 'JuRename',
     asar: true,
     icon: 'assets/icon',
   },

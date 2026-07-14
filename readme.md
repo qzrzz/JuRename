@@ -104,6 +104,8 @@ App 来操作才是更好的方案。
 
 ## 开发
 
+### Electron 版本
+
 项目使用 [Bun](https://bun.sh/) 管理依赖和运行脚本。
 
 ```bash
@@ -145,13 +147,17 @@ bun run website:build
 
 发布流程会根据 `package.json` 的 `version`，构建 macOS、Windows 和 Linux 的安装包，再将全部产物发布到同名的 GitHub Release。
 
-1. 将 `package.json` 中的 `version` 更新为待发布版本，例如 `1.1.0`。
-2. 提交并推送版本更新。
-3. 创建并推送同版本标签：
+工作区处于干净状态后，运行以下命令即可完成版本递增、官网构建、Git 提交、打标签与推送：
 
 ```bash
-git tag v1.1.0
-git push origin v1.1.0
+# 补丁版本：1.0.0 → 1.0.1
+bun run release
+
+# 次版本：1.0.0 → 1.1.0
+bun run release -- minor
+
+# 主版本：1.0.0 → 2.0.0
+bun run release -- major
 ```
 
-标签必须严格等于 `v` 加 `package.json` 版本号（例如 `v1.1.0`）。版本不一致时，发布流程会停止，避免误发布。
+脚本会由 `npm version` 创建 `v` 加版本号的标签（例如 `v1.1.0`），并将该标签推送到远程仓库。GitHub Actions 随后验证标签与 `package.json` 版本一致，再构建和发布。
