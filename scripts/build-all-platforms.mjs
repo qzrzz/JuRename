@@ -15,7 +15,7 @@ const dockerBuild = (script, image) => {
     '-v', `${projectName}:/project/node_modules`,
     '-w', '/project',
     image,
-    '/bin/bash', '-lc', `npm install --package-lock=false && npm run ${script}`,
+    '/bin/bash', '-lc', `npm install --legacy-peer-deps --package-lock=false && npm run ${script}`,
   ]);
 };
 
