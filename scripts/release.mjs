@@ -10,23 +10,37 @@ const run = (command, args) => {
   if (result.status !== 0) process.exit(result.status ?? 1);
 };
 
+const getOutput = (command, args) => {
+  const result = spawnSync(command, args, { encoding: 'utf8' });
+  if (result.status !== 0) process.exit(result.status ?? 1);
+  return result.stdout.trim();
+};
+
+const artifactFile = /\.(dmg|zip|exe|appimage|deb|rpm)$/i;
+
 const collectFiles = (directory) => readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
   const file = join(directory, entry.name);
-  return entry.isDirectory() ? collectFiles(file) : [file];
+  return entry.isDirectory() ? collectFiles(file) : artifactFile.test(file) ? [file] : [];
 });
 
-run('npm', ['version', ...versionBump]);
-run('bun', ['run', 'dist:all']);
-run('git', ['push', '--follow-tags']);
+if (getOutput('git', ['status', '--porcelain'])) {
+  throw new Error('Git working directory must be clean before releasing.');
+}
 
-const version = JSON.parse(spawnSync('node', ['-p', "JSON.stringify(require('./package.json').version)"], {
-  encoding: 'utf8',
-}).stdout);
+run('npm', ['version', ...versionBump, '--no-git-tag-version']);
+run('bun', ['run', 'dist:all']);
+
+const version = getOutput('node', ['-p', "require('./package.json').version"]);
 const artifacts = collectFiles('release');
 
 if (artifacts.length === 0) {
   throw new Error('No release artifacts were generated.');
 }
+
+run('git', ['add', 'package.json', 'docs']);
+run('git', ['commit', '-m', `chore(release): v${version}`]);
+run('git', ['tag', `v${version}`]);
+run('git', ['push', '--follow-tags']);
 
 run('gh', [
   'release', 'create', `v${version}`, ...artifacts,

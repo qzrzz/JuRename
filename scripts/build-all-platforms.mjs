@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { rmSync } from 'node:fs';
 
 const projectName = 'jurename-builder-node-modules';
 
@@ -17,6 +18,8 @@ const dockerBuild = (script, image) => {
     '/bin/bash', '-lc', `npm install --package-lock=false && npm run ${script}`,
   ]);
 };
+
+rmSync('release', { recursive: true, force: true });
 
 run('bun', ['run', 'dist:mac']);
 dockerBuild('dist:win', 'electronuserland/builder:wine');
