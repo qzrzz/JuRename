@@ -7,9 +7,12 @@
   "private": true,
   "scripts": {
     "start": "electron-forge start",
-    "package": "electron-forge package",
-    "make": "electron-forge make",
-    "publish": "electron-forge publish",
+    "website:build": "vite build --config vite.website.config.ts",
+    "website:dev": "vite --config vite.website.config.ts",
+    "generate:icons": "node scripts/generate-icons.mjs",
+    "package": "npm run generate:icons && electron-forge package",
+    "make": "npm run generate:icons && electron-forge make",
+    "publish": "npm run generate:icons && electron-forge publish",
     "lint": "eslint --ext .ts,.tsx .",
     "test": "vitest run"
   },

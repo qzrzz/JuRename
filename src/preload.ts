@@ -6,5 +6,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readDirectory: (dirPath: string) => ipcRenderer.invoke('read-directory', dirPath),
   scanPaths: (paths: string[]) => ipcRenderer.invoke('scan-paths', paths),
   getFilePath: (file: File) => webUtils.getPathForFile(file),
-  renameFiles: (renames: { oldPath: string, newPath: string }[]) => ipcRenderer.invoke('rename-files', renames)
+  renameFile: (rename: { oldPath: string, newPath: string }) => ipcRenderer.invoke('rename-file', rename)
 });

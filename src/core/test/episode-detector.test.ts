@@ -160,4 +160,24 @@ describe('剧集智能识别核心算法测试', () => {
     expect(checked).toBe(1130);
   });
 
+  test('sample2.txt 中重复的 mp3 标签不能压过补零连续序号', () => {
+    const names = readFileSync(new URL('./sample2.txt', import.meta.url), 'utf8')
+      .split(/\r?\n/)
+      .filter(Boolean);
+    const results = analyzeEpisodes(names.map((name, index) => ({ name, path: `/${index}` })));
+    const target = results.find(result => result.name === '世子很凶_069 许不令的鸿门宴mp3.m4a');
+
+    expect(target?.bestNumber).toBe(69);
+  });
+
+  test('sample2.txt 中零散的中文标题数字不能借用阿拉伯序号轨道', () => {
+    const names = readFileSync(new URL('./sample2.txt', import.meta.url), 'utf8')
+      .split(/\r?\n/)
+      .filter(Boolean);
+    const results = analyzeEpisodes(names.map((name, index) => ({ name, path: `/${index}` })));
+    const target = results.find(result => result.name === '世子很凶_131 五百次回眸.m4a');
+
+    expect(target?.bestNumber).toBe(131);
+  });
+
 });

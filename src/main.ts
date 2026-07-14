@@ -16,6 +16,10 @@ const createWindow = () => {
     height: 780,
     minWidth: 850,
     minHeight: 600,
+    icon: path.join(__dirname, '../../icon.png'),
+    // Chromium may expose the native window surface for a frame while macOS
+    // performs a live resize. Keep that surface the same colour as the app.
+    backgroundColor: '#0a0d0c',
     titleBarStyle: 'hidden',
     trafficLightPosition: { x: 14, y: 14 },
     webPreferences: {
@@ -107,22 +111,24 @@ function registerIpcHandlers() {
     return allFiles;
   });
 
-  ipcMain.handle('rename-files', async (_event, renames: { oldPath: string, newPath: string }[]) => {
-    console.log(chalk.blue(`[IPC] 收到重命名请求，共 ${renames.length} 个文件`));
-    const errors: { path: string; error: string }[] = [];
-    for (const item of renames) {
-      try {
-        await fs.rename(item.oldPath, item.newPath);
-      } catch (err: any) {
-        console.error(chalk.red(`[Error] 重命名失败: ${item.oldPath} -> ${item.newPath}`), err);
-        errors.push({ path: item.oldPath, error: err.message });
+  ipcMain.handle('rename-file', async (_event, item: { oldPath: string, newPath: string }) => {
+    try {
+      if (item.oldPath !== item.newPath) {
+        try {
+          await fs.access(item.newPath);
+          return { success: false, error: '目标文件已存在' };
+        } catch (error: any) {
+          if (error?.code !== 'ENOENT') {
+            return { success: false, error: error?.message || '无法检查目标文件' };
+          }
+        }
       }
+      await fs.rename(item.oldPath, item.newPath);
+      return { success: true };
+    } catch (err: any) {
+      console.error(chalk.red(`[Error] 重命名失败: ${item.oldPath} -> ${item.newPath}`), err);
+      return { success: false, error: err.message || String(err) };
     }
-    if (errors.length > 0) {
-      return { success: false, errors };
-    }
-    console.log(chalk.green('[IPC] 批量物理重命名全部顺利完成！'));
-    return { success: true };
   });
 }
 

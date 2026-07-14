@@ -6,6 +6,7 @@ export interface VirtualListProps {
   renderItem: (item: any, index: number) => React.ReactNode;
   scrollToIndexRef?: React.MutableRefObject<((index: number) => void) | null>;
   highlightIndex?: number | null;
+  scrollBehavior?: ScrollBehavior;
 }
 
 export const VirtualList: React.FC<VirtualListProps> = ({
@@ -13,7 +14,8 @@ export const VirtualList: React.FC<VirtualListProps> = ({
   itemHeight = 44,
   renderItem,
   scrollToIndexRef,
-  highlightIndex
+  highlightIndex,
+  scrollBehavior = 'smooth'
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
@@ -51,9 +53,9 @@ export const VirtualList: React.FC<VirtualListProps> = ({
     const targetScrollTop = safeIndex * itemHeight;
     container.scrollTo({
       top: targetScrollTop,
-      behavior: 'smooth'
+      behavior: scrollBehavior
     });
-  }, [items.length, itemHeight]);
+  }, [items.length, itemHeight, scrollBehavior]);
 
   // 将滚动方法暴露给父组件
   useEffect(() => {
