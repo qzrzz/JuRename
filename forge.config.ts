@@ -19,8 +19,12 @@ const config: ForgeConfig = {
   makers: [
     new MakerSquirrel({}),
     new MakerZIP({}, ['darwin']),
-    new MakerRpm({}),
-    new MakerDeb({}),
+    new MakerRpm({
+      options: { bin: 'JuRename' },
+    }),
+    new MakerDeb({
+      options: { bin: 'JuRename' },
+    }),
   ],
   plugins: [
     new VitePlugin({
