@@ -1,13 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import started from 'electron-squirrel-startup';
 import chalk from 'chalk';
-
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
-if (started) {
-  app.quit();
-}
 
 const createWindow = () => {
   // Create the browser window.
@@ -16,7 +10,9 @@ const createWindow = () => {
     height: 780,
     minWidth: 850,
     minHeight: 600,
-    icon: path.join(__dirname, '../../icon.png'),
+    icon: app.isPackaged
+      ? path.join(process.resourcesPath, 'icon.png')
+      : path.join(process.cwd(), 'icon.png'),
     // Chromium may expose the native window surface for a frame while macOS
     // performs a live resize. Keep that surface the same colour as the app.
     backgroundColor: '#0a0d0c',
@@ -28,12 +24,10 @@ const createWindow = () => {
   });
 
   // and load the index.html of the app.
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+  if (!app.isPackaged) {
+    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5173');
   } else {
-    mainWindow.loadFile(
-      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
-    );
+    mainWindow.loadFile(path.join(__dirname, 'renderer/index.html'));
   }
 };
 

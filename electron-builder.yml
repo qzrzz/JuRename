@@ -1,0 +1,28 @@
+appId: com.qzrzz.jurename
+productName: JuRename
+asar: true
+directories:
+  output: release
+  buildResources: assets
+files:
+  - dist-electron/**
+  - package.json
+extraResources:
+  - from: assets/icon.png
+    to: icon.png
+mac:
+  target:
+    - dmg
+    - zip
+win:
+  target:
+    - nsis
+linux:
+  category: Utility
+  target:
+    - AppImage
+    - deb
+    - rpm
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true

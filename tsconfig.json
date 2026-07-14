@@ -16,8 +16,5 @@
       "vitest/globals"
     ]
   },
-  "include": [
-    "src",
-    "forge.env.d.ts"
-  ]
+  "include": ["src"]
 }

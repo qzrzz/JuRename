@@ -5,6 +5,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
+dist-electron
+release
 
 temp
 # Diagnostic reports (https://nodejs.org/api/report.html)
@@ -88,6 +90,3 @@ typings/
 
 # Vite
 .vite/
-
-# Electron-Forge
-out/
