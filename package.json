@@ -1,7 +1,7 @@
 {
   "name": "jurename",
   "productName": "JuRename",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "My Electron application description",
   "main": "dist-electron/main.js",
   "private": true,
@@ -17,7 +17,7 @@
     "build:renderer": "vite build --config vite.builder.renderer.config.ts",
     "build": "npm run build:main && npm run build:preload && npm run build:renderer",
     "dist:mac": "npm run build && CSC_NAME=\"$MACOS_SIGNING_IDENTITY\" electron-builder --mac --universal",
-    "dist:win": "npm run build && electron-builder --win nsis --x64",
+    "dist:win": "npm run build && electron-builder --win zip --x64",
     "dist:linux": "npm run build && electron-builder --linux AppImage deb rpm --x64",
     "dist:all": "node scripts/build-all-platforms.mjs",
     "lint": "eslint --ext .ts,.tsx .",
