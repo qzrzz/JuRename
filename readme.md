@@ -51,7 +51,7 @@ App 来操作才是更好的方案。
 使用 base-ui
 使用 vite
 使用 Renderaissance 设计样式，黑暗模式为主色调
-使用 electronforge
+使用 electron-builder
 使用 TypeScript
 
 核心逻辑、前端界面、操作系统功能要分开，有良好的代码结构
@@ -122,11 +122,47 @@ bun run test
 ### 构建桌面应用
 
 ```bash
-# 打包当前平台的应用
-bun run package
+# 构建桌面应用资源
+bun run build
 
-# 生成可分发安装包
-bun run make
+# 生成本机 macOS 发行包（会签名和公证）
+bun run dist:mac
+```
+
+### 本地构建、签名与发布
+
+先在“钥匙串访问”中安装 Apple Developer Program 的 `Developer ID Application` 证书，并确认系统能找到它：
+
+```bash
+security find-identity -p codesigning -v
+```
+
+在 `.env` 中设置签名与公证凭据。`APPLE_APP_SPECIFIC_PASSWORD` 是 Apple ID 的 App 专用密码，而不是登录密码：
+
+```bash
+MACOS_SIGNING_IDENTITY='Developer ID Application: Your Name (TEAMID)'
+APPLE_ID='you@example.com'
+APPLE_APP_SPECIFIC_PASSWORD='xxxx-xxxx-xxxx-xxxx'
+APPLE_TEAM_ID='TEAMID'
+```
+
+构建三个平台的发行包：
+
+```bash
+bun run dist:all
+```
+
+该命令会在本机生成并签名、公证 macOS 的 DMG 与 ZIP；再通过 Docker 生成 Windows 的 NSIS 安装程序和 Linux 的 AppImage、DEB、RPM。产物位于 `release/`。
+
+发布新版本会递增版本号、构建三个平台、推送 Git tag，并用已登录的 GitHub CLI 创建 Release 和上传全部产物：
+
+```bash
+gh auth login
+bun run release
+
+# 次版本或主版本
+bun run release -- minor
+bun run release -- major
 ```
 
 ### 构建官网与 GitHub Pages
@@ -147,7 +183,7 @@ bun run website:build
 
 发布流程会根据 `package.json` 的 `version`，构建 macOS、Windows 和 Linux 的安装包，再将全部产物发布到同名的 GitHub Release。
 
-工作区处于干净状态后，运行以下命令即可完成版本递增、官网构建、Git 提交、打标签与推送：
+工作区处于干净状态后，运行以下命令即可完成版本递增、官网构建、三平台构建、Git 提交、打标签、推送与 GitHub Release 发布：
 
 ```bash
 # 补丁版本：1.0.0 → 1.0.1
