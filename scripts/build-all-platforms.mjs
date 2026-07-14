@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 
 const projectName = 'jurename-builder-node-modules';
-const minimumDockerMemory = 6 * 1024 ** 3;
+const minimumDockerMemory = 5 * 1024 ** 3;
 
 const run = (command, args) => {
   const result = spawnSync(command, args, { stdio: 'inherit' });
@@ -32,7 +32,7 @@ if (dockerInfo.status !== 0 || !Number.isFinite(dockerMemory)) {
   throw new Error('Docker is unavailable. Start OrbStack or Docker Desktop before building release artifacts.');
 }
 if (dockerMemory < minimumDockerMemory) {
-  throw new Error('Docker needs at least 6 GB of memory for Windows cross-builds. Increase OrbStack or Docker Desktop resources, then retry.');
+  throw new Error('Docker needs at least 5 GiB of memory for Windows cross-builds. Increase OrbStack or Docker Desktop resources, then retry.');
 }
 
 rmSync('release', { recursive: true, force: true });
