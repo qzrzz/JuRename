@@ -16,10 +16,8 @@ mac:
 win:
   target:
     - zip
-    - zip
 linux:
   category: Utility
+  syncDesktopName: true
   target:
     - AppImage
-    - deb
-    - rpm
