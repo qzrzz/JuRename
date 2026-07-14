@@ -195,14 +195,8 @@ export function analyzeEpisodes(files: { name: string; path: string }[]): FileIt
     finalNumberStr: '',
   }));
 
-  const valueFileCount = new Map<number, number>();
   const styledValueFileCount = new Map<string, number>();
   for (const item of items) {
-    const values = new Set(
-      item.candidates.filter(candidate => !candidate.isFloat).map(candidate => candidate.value)
-    );
-    for (const value of values) valueFileCount.set(value, (valueFileCount.get(value) ?? 0) + 1);
-
     const styledValues = new Set(
       item.candidates
         .filter(candidate => !candidate.isFloat)
@@ -213,19 +207,20 @@ export function analyzeEpisodes(files: { name: string; path: string }[]): FileIt
     }
   }
 
-  const sequences = buildSequences(valueFileCount.keys());
-
-  // Count how much of each continuous sequence is represented in the same notation.
-  // This separates a real padded/plain track from isolated numbers in titles and adverts.
-  const styleValues = new Map<string, Set<number>>();
+  // Build continuity independently for each notation. A Chinese title number such as
+  // "五百次回眸" must not borrow continuity from an Arabic 001..999 episode track.
+  const valuesByStyle = new Map<string, Set<number>>();
   for (const item of items) {
     for (const candidate of item.candidates) {
       if (candidate.isFloat) continue;
-      const sequence = sequences.get(candidate.value)!;
-      const key = `${sequence.start}:${sequence.end}:${candidateStyle(candidate)}`;
-      if (!styleValues.has(key)) styleValues.set(key, new Set());
-      styleValues.get(key)!.add(candidate.value);
+      const style = candidateStyle(candidate);
+      if (!valuesByStyle.has(style)) valuesByStyle.set(style, new Set());
+      valuesByStyle.get(style)!.add(candidate.value);
     }
+  }
+  const sequencesByStyle = new Map<string, Map<number, SequenceInfo>>();
+  for (const [style, values] of valuesByStyle) {
+    sequencesByStyle.set(style, buildSequences(values));
   }
 
   for (const item of items) {
@@ -241,19 +236,18 @@ export function analyzeEpisodes(files: { name: string; path: string }[]): FileIt
     let winnerScore = -Infinity;
 
     for (const candidate of integerCandidates) {
-      const sequence = sequences.get(candidate.value)!;
-      const repetitionKey = `${candidate.value}:${candidateStyle(candidate)}`;
+      const style = candidateStyle(candidate);
+      const sequence = sequencesByStyle.get(style)!.get(candidate.value)!;
+      const repetitionKey = `${candidate.value}:${style}`;
       const fileCount = styledValueFileCount.get(repetitionKey) ?? 1;
       const repeatRate = fileCount / items.length;
-      const styleKey = `${sequence.start}:${sequence.end}:${candidateStyle(candidate)}`;
-      const styleCoverage = styleValues.get(styleKey)?.size ?? 1;
 
-      // Continuity deliberately dominates. Repetition only becomes a strong negative
-      // at the requested 30% threshold; below that it remains a gentle tie-breaker.
+      // Continuity deliberately dominates, while repeated values continuously lose
+      // confidence. This is important for embedded labels such as "mp3": even when
+      // they occur in fewer than 30% of files, they must not beat a real padded track.
       let score = sequence.length * 10_000;
-      score += styleCoverage * 100;
-      score -= Math.max(0, fileCount - 1) * 5;
-      if (repeatRate >= 0.3) score -= repeatRate * sequence.length * 20_000;
+      score += sequence.length * 100;
+      score -= repeatRate * sequence.length * 20_000;
 
       // Prefer the earlier occurrence only after global evidence is exhausted.
       score -= candidate.index / Math.max(1, item.name.length);

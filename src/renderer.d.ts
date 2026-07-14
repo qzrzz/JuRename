@@ -6,7 +6,7 @@ interface IElectronAPI {
   readDirectory: (dirPath: string) => Promise<string[]>;
   scanPaths: (paths: string[]) => Promise<string[]>;
   getFilePath: (file: File) => string;
-  renameFiles: (renames: { oldPath: string, newPath: string }[]) => Promise<{ success: boolean; errors?: { path: string; error: string }[] }>;
+  renameFile: (rename: { oldPath: string; newPath: string }) => Promise<{ success: boolean; error?: string }>;
 }
 
 declare global {
