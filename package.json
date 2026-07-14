@@ -16,7 +16,7 @@
     "build:preload": "vite build --config vite.builder.preload.config.ts",
     "build:renderer": "vite build --config vite.builder.renderer.config.ts",
     "build": "bun run build:main && bun run build:preload && bun run build:renderer",
-    "dist:mac": "bun run build && CSC_NAME=\"$MACOS_SIGNING_IDENTITY\" electron-builder --mac universal",
+    "dist:mac": "bun run build && CSC_NAME=\"$MACOS_SIGNING_IDENTITY\" electron-builder --mac --universal",
     "dist:win": "bun run build && electron-builder --win nsis --x64",
     "dist:linux": "bun run build && electron-builder --linux AppImage deb rpm --x64",
     "dist:all": "node scripts/build-all-platforms.mjs",

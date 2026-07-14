@@ -12,11 +12,11 @@ extraResources:
     to: icon.png
 mac:
   target:
-    - dmg
     - zip
 win:
   target:
     - nsis
+    - zip
 linux:
   category: Utility
   target:
