@@ -1,7 +1,7 @@
 {
   "name": "jurename",
   "productName": "JuRename",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "My Electron application description",
   "main": ".vite/build/main.js",
   "private": true,
