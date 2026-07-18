@@ -12,7 +12,7 @@ const run = (command, args) => {
   if (result.status !== 0) process.exit(result.status ?? 1);
 };
 
-const dockerBuild = (script, image) => {
+const dockerBuild = (platform, image) => {
   run('docker', [
     'run', '--rm', '--platform', 'linux/amd64',
     '-v', `${process.cwd()}:/source:ro`,
@@ -26,7 +26,7 @@ const dockerBuild = (script, image) => {
       'tar --exclude=node_modules --exclude=release --exclude=dist-electron --exclude=.git -C /source -cf - . | tar -C /project -xf -',
       'rm -f bun.lock',
       'npm install --legacy-peer-deps --package-lock=false',
-      `npm run ${script}`,
+      `node scripts/package-platform.mjs ${platform}`,
       'cp -a /project/release/. /output/',
     ].join('; '),
   ]);
@@ -48,6 +48,6 @@ if (missingNotarizationVariables.length > 0) {
 rmSync('release', { recursive: true, force: true });
 mkdirSync('release');
 
-run('bun', ['run', 'dist:mac']);
-dockerBuild('dist:win', 'electronuserland/builder:wine');
-dockerBuild('dist:linux', 'electronuserland/builder');
+run(process.execPath, ['scripts/package-platform.mjs', 'mac']);
+dockerBuild('win', 'electronuserland/builder:wine');
+dockerBuild('linux', 'electronuserland/builder');
