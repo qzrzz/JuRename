@@ -1,7 +1,7 @@
 {
   "name": "jurename",
   "productName": "JuRename",
-  "version": "1.0.27",
+  "version": "1.0.28",
   "description": "智能识别连续序号的批量文件重命名工具",
   "homepage": "https://github.com/qzrzz/JuRename",
   "desktopName": "jurename",
