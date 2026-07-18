@@ -9,7 +9,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         format: 'cjs',
-        inlineDynamicImports: true,
+        codeSplitting: false,
         entryFileNames: 'preload.js',
         chunkFileNames: '[name].js',
         assetFileNames: '[name].[ext]',
