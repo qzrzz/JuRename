@@ -1,0 +1,27 @@
+{
+  "imports": {
+    "react": "npm:react@19.2.7",
+    "react-dom/client": "npm:react-dom@19.2.7/client",
+    "react/jsx-runtime": "npm:react@19.2.7/jsx-runtime"
+  },
+  "tasks": {
+    "build:ui": "deno run -A npm:vite@8.1.4 build --config vite.config.ts",
+    "check": "deno check main.ts && deno task build:ui",
+    "desktop": "deno task build:ui && deno desktop --backend webview --allow-read --allow-write --allow-run=/usr/bin/osascript --include dist main.ts",
+    "build:macos:arm64": "deno task build:ui && deno desktop --backend webview --target aarch64-apple-darwin --output artifacts/macos-arm64/JuRename.app --icon ../assets/icon.icns --allow-read --allow-write --allow-run=/usr/bin/osascript --include dist main.ts",
+    "build:macos:x64": "deno task build:ui && deno desktop --backend webview --target x86_64-apple-darwin --output artifacts/macos-x64/JuRename.app --icon ../assets/icon.icns --allow-read --allow-write --allow-run=/usr/bin/osascript --include dist main.ts",
+    "build:windows:x64": "deno task build:ui && deno desktop --backend webview --target x86_64-pc-windows-msvc --output artifacts/windows-x64/JuRename.msi --allow-read --allow-write --allow-run=powershell.exe --include dist main.ts",
+    "release:prepare": "deno run --allow-read --allow-write --allow-run=ditto scripts/prepare-release.ts"
+  },
+  "desktop": {
+    "app": {
+      "name": "JuRename",
+      "identifier": "com.qzrzz.jurename"
+    },
+    "backend": "webview",
+    "output": {
+      "macos": "./artifacts/macos/JuRename.app",
+      "windows": "./artifacts/windows/JuRename.msi"
+    }
+  }
+}

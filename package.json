@@ -15,7 +15,8 @@
     "website:dev": "vite --config vite.website.config.ts",
     "website:build": "vite build --config vite.website.config.ts",
     "dist": "node scripts/build-all-platforms.mjs",
-    "release": "node scripts/release.mjs"
+    "release": "node scripts/release.mjs",
+    "release:deno-desktop": "node scripts/release-deno-desktop.mjs"
   },
   "keywords": [],
   "author": {

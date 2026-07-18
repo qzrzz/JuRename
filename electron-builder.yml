@@ -11,6 +11,7 @@ extraResources:
   - from: assets/icon.png
     to: icon.png
 mac:
+  artifactName: ${productName}-${version}-${arch}-mac.${ext}
   target:
     - zip
 win:

@@ -37,12 +37,17 @@ const dockerBuild = (platform, image) => {
   ]);
 };
 
-const hasArtifact = (platform) => readdirSync('release', { withFileTypes: true }).some((entry) => {
-  if (!entry.isFile() || !entry.name.includes(version)) return false;
-  if (platform === 'mac') return /universal-mac\.zip$/i.test(entry.name);
-  if (platform === 'win') return /\.zip$/i.test(entry.name) && !/universal-mac\.zip$/i.test(entry.name);
-  return /\.AppImage$/i.test(entry.name);
-});
+const hasArtifact = (platform) => {
+  const files = readdirSync('release', { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.includes(version))
+    .map((entry) => entry.name);
+
+  if (platform === 'mac') {
+    return ['x64', 'arm64'].every((arch) => files.includes(`JuRename-${version}-${arch}-mac.zip`));
+  }
+  if (platform === 'win') return files.includes(`JuRename-${version}-win.zip`);
+  return files.includes(`JuRename-${version}.AppImage`);
+};
 
 const buildUnlessComplete = (platform, build) => {
   if (hasArtifact(platform)) {

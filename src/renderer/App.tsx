@@ -56,6 +56,7 @@ const SEPARATOR_OPTIONS = [
 ];
 
 export const App: React.FC = () => {
+  const supportsPathDrop = window.electronAPI.supportsPathDrop !== false;
   const [files, setFiles] = useState<DisplayFileItem[]>([]);
   // 自动根据所有有效集数中最大的整数长度来决定补零宽度，最小 2 位
   const paddingWidth = useMemo(() => {
@@ -155,9 +156,19 @@ export const App: React.FC = () => {
   // 选择一个文件夹并作为新任务打开
   const handleOpenDirectory = async () => {
     if (renamePhase === 'running') return;
-    const dir = await window.electronAPI.selectDirectory();
-    if (dir) {
-      await openPathsAsNewTask([dir]);
+    try {
+      const dir = await window.electronAPI.selectDirectory();
+      if (dir) {
+        await openPathsAsNewTask([dir]);
+      }
+    } catch (error) {
+      console.error('打开文件夹失败:', error);
+      const message = error instanceof Error
+        ? error.message
+        : (typeof error === 'object' && error !== null && 'message' in error
+          ? String(error.message)
+          : String(error));
+      alert(`无法打开文件夹：${message}`);
     }
   };
 
@@ -292,6 +303,8 @@ export const App: React.FC = () => {
 
   // 全局阻止默认的拖放行为并管理窗口全局拖拽状态
   useEffect(() => {
+    if (!supportsPathDrop) return;
+
     const handleDragOver = (e: DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
@@ -334,7 +347,7 @@ export const App: React.FC = () => {
       window.removeEventListener('dragleave', handleDragLeave);
       window.removeEventListener('drop', handleDropEvent);
     };
-  }, [files, renamePhase]);
+  }, [files, renamePhase, supportsPathDrop]);
 
   // 搜索关键词检索
   useEffect(() => {
@@ -521,8 +534,13 @@ export const App: React.FC = () => {
 
   return (
     <main className="app-container">
+      {window.electronAPI.closeApp && (
+        <button className="deno-close-button" onClick={() => window.electronAPI.closeApp?.()} id="btn-close-app" aria-label="退出应用">
+          ×
+        </button>
+      )}
       {/* 拖拽全屏发光覆盖层 */}
-      {dragActive && (
+      {supportsPathDrop && dragActive && (
         <div className="drag-overlay">
           <div className="drag-overlay-card">
             <div className="drag-overlay-icon"><Icon name="folder" size={34} /></div>
@@ -643,13 +661,13 @@ export const App: React.FC = () => {
               </div>
               <span className="dropzone-eyebrow">智能序号识别</span>
               <h2 className="dropzone-title">把杂乱文件，整理成正确顺序</h2>
-              <p className="dropzone-subtext">拖入剧集文件或整个文件夹，JuRename 会提取连续序号并生成安全的重命名预览。</p>
+              <p className="dropzone-subtext">{supportsPathDrop ? '拖入剧集文件或整个文件夹，JuRename 会提取连续序号并生成安全的重命名预览。' : '选择剧集文件夹，JuRename 会提取连续序号并生成安全的重命名预览。'}</p>
               <div className="dropzone-actions">
                 <button className="btn btn-primary btn-large" onClick={handleOpenDirectory} id="btn-empty-folder">
                   <Icon name="folder" size={17} />打开文件夹
                 </button>
               </div>
-              <span className="drop-hint">或直接拖放到窗口任意位置</span>
+              {supportsPathDrop && <span className="drop-hint">或直接拖放到窗口任意位置</span>}
             </div>
             <div className="feature-strip">
               <span><i>01</i>连续数字优先</span>

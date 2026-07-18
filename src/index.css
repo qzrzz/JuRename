@@ -87,6 +87,31 @@ body {
   flex: 0 0 auto;
 }
 
+.deno-close-button {
+  position: fixed;
+  top: 8px;
+  left: 10px;
+  z-index: 1000;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 19px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.deno-close-button:hover {
+  border-color: rgba(var(--error-rgb), 0.5);
+  background: rgba(var(--error-rgb), 0.15);
+  color: var(--error);
+}
+
 /* Header */
 .header-bar {
   min-height: 54px;

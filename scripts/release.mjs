@@ -21,7 +21,10 @@ const getOutput = (command, args) => {
 const artifactFile = /\.(dmg|zip|exe|appimage|deb|rpm)$/i;
 
 const collectFiles = (directory, version) => readdirSync(directory, { withFileTypes: true })
-  .filter((entry) => entry.isFile() && entry.name.includes(version) && artifactFile.test(entry.name))
+  .filter((entry) => entry.isFile()
+    && entry.name.includes(version)
+    && artifactFile.test(entry.name)
+    && !/universal-mac\.zip$/i.test(entry.name))
   .map((entry) => join(directory, entry.name));
 
 if (getOutput('git', ['status', '--porcelain'])) {
