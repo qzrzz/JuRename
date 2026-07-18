@@ -12,6 +12,10 @@ if (!args) throw new Error('Expected platform: mac, win, or linux');
 
 const run = (command, commandArgs) => {
   const result = spawnSync(command, commandArgs, { stdio: 'inherit' });
+  if (result.error) throw result.error;
+  if (result.signal) {
+    throw new Error(`${command} was terminated by ${result.signal}. The process may have run out of memory.`);
+  }
   if (result.status !== 0) process.exit(result.status ?? 1);
 };
 

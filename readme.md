@@ -106,6 +106,8 @@ release
 
 `dist` 会在本机完成 macOS 签名与公证，并通过 Docker 构建 Windows 和 Linux 包。Docker 需要至少分配 5 GiB 内存，所有产物输出到 `release/`。
 
+打包支持断点续跑：重新执行 `dist` 或失败后的 `release` 时，当前版本已经生成的各平台产物会被跳过，只构建缺失的平台。旧版本产物不会被当作当前版本，也不会上传到新的 GitHub Release。
+
 在 `.env` 中配置 macOS 签名与公证信息：
 
 ```dotenv
