@@ -1,18 +1,15 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 
-const bun = process.platform === 'win32' ? 'bun.exe' : 'bun';
 const electron = process.platform === 'win32' ? 'electron.cmd' : 'electron';
 const electronBin = join('node_modules', '.bin', electron);
+const vite = join('node_modules', '.bin', process.platform === 'win32' ? 'vite.cmd' : 'vite');
 const devServerUrl = 'http://127.0.0.1:5173';
 
-const build = spawnSync(bun, ['run', 'build:main'], { stdio: 'inherit' });
+const build = spawnSync(process.execPath, ['scripts/build.mjs', 'main', 'preload'], { stdio: 'inherit' });
 if (build.status !== 0) process.exit(build.status ?? 1);
 
-const preload = spawnSync(bun, ['run', 'build:preload'], { stdio: 'inherit' });
-if (preload.status !== 0) process.exit(preload.status ?? 1);
-
-const vite = spawn(bun, ['x', 'vite', '--config', 'vite.builder.renderer.config.ts', '--host', '127.0.0.1'], {
+const viteServer = spawn(vite, ['--config', 'vite.builder.renderer.config.ts', '--host', '127.0.0.1'], {
   stdio: 'inherit',
 });
 
@@ -37,18 +34,18 @@ try {
   });
 } catch (error) {
   console.error(error);
-  vite.kill();
+  viteServer.kill();
   process.exitCode = 1;
 }
 
 const shutdown = () => {
   app?.kill();
-  vite.kill();
+  viteServer.kill();
 };
 
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 app?.on('exit', shutdown);
-vite.on('exit', (code) => {
+viteServer.on('exit', (code) => {
   if (code && code !== 0) process.exitCode = code;
 });

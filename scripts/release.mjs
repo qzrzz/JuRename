@@ -28,7 +28,8 @@ if (getOutput('git', ['status', '--porcelain'])) {
 }
 
 run('npm', ['version', ...versionBump, '--no-git-tag-version']);
-run('bun', ['run', 'dist:all']);
+run('bun', ['run', 'website:build']);
+run('bun', ['run', 'dist']);
 
 const version = getOutput('node', ['-p', "require('./package.json').version"]);
 const artifacts = collectFiles('release');
