@@ -1,6 +1,8 @@
 appId: com.qzrzz.jurename
 productName: JuRename
 asar: true
+concurrency:
+  jobs: 2
 directories:
   output: release
   buildResources: assets
