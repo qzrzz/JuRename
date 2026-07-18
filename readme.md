@@ -4,6 +4,10 @@
 
 智能识别剧集文件名中的**集数序号**，在文件名**开头补零**重命名，让各类播放器按正确顺序播放。
 
+
+- 主页：[https://qzrzz.github.io/JuRename/](https://qzrzz.github.io/JuRename/)
+- 下载：[https://github.com/qzrzz/JuRename/releases](https://github.com/qzrzz/JuRename/releases)
+  
 ## 为什么需要这个
 
 JuRename 它解决的问题的背景是我有很多剧集文件，在手机播放器上顺序是不对的，因为
