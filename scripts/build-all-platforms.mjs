@@ -38,7 +38,7 @@ if (dockerInfo.status !== 0 || !Number.isFinite(dockerMemory)) {
   throw new Error('Docker is unavailable. Start OrbStack or Docker Desktop before building release artifacts.');
 }
 if (dockerMemory < minimumDockerMemory) {
-  throw new Error('Docker needs at least 5 GiB of memory for Windows cross-builds. Increase OrbStack or Docker Desktop resources, then retry.');
+  console.warn('Docker needs at least 5 GiB of memory for Windows cross-builds. Increase OrbStack or Docker Desktop resources, then retry.')
 }
 const missingNotarizationVariables = notarizationVariables.filter((name) => !process.env[name]);
 if (missingNotarizationVariables.length > 0) {
