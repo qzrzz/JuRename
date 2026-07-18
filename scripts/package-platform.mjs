@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 const platform = process.argv[2];
 const platformArgs = {
-  mac: ['--mac', '--universal'],
+  mac: ['--mac', 'zip', '--x64', '--arm64'],
   win: ['--win', 'zip', '--x64'],
   linux: ['--linux', 'AppImage', '--x64'],
 };

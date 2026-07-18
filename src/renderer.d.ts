@@ -1,6 +1,8 @@
 /// <reference types="vite/client" />
 
 interface IElectronAPI {
+  supportsPathDrop?: boolean;
+  closeApp?: () => void;
   selectFiles: () => Promise<string[]>;
   selectDirectory: () => Promise<string | null>;
   readDirectory: (dirPath: string) => Promise<string[]>;
