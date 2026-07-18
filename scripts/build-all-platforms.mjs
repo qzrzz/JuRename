@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, readdirSync } from 'node:fs';
 
 process.loadEnvFile?.('.env');
@@ -8,17 +8,26 @@ const minimumDockerMemory = 2.5 * 1024 ** 3;
 const notarizationVariables = ['APPLE_ID', 'APPLE_APP_SPECIFIC_PASSWORD', 'APPLE_TEAM_ID'];
 const version = JSON.parse(readFileSync('package.json', 'utf8')).version;
 
-const run = (command, args) => {
-  const result = spawnSync(command, args, { stdio: 'inherit' });
-  if (result.error) throw result.error;
-  if (result.signal) {
-    throw new Error(`${command} was terminated by ${result.signal}. Check Docker memory and system resources.`);
-  }
-  if (result.status !== 0) process.exit(result.status ?? 1);
-};
+const run = (command, args) => new Promise((resolve, reject) => {
+  const child = spawn(command, args, { stdio: 'inherit' });
+  child.once('error', reject);
+  child.once('close', (code, signal) => {
+    if (signal) {
+      reject(new Error(`${command} was terminated by ${signal}. Check Docker memory and system resources.`));
+    } else if (code !== 0) {
+      reject(new Error(`${command} exited with code ${code ?? 1}.`));
+    } else {
+      resolve();
+    }
+  });
+});
 
 const dockerBuild = (platform, image) => {
-  run('docker', [
+  const artifact = platform === 'win'
+    ? `JuRename-${version}-win.zip`
+    : `JuRename-${version}.AppImage`;
+
+  return run('docker', [
     'run', '--rm', '--platform', 'linux/amd64',
     '-v', `${process.cwd()}:/source:ro`,
     '-v', `${process.cwd()}/release:/output`,
@@ -32,7 +41,7 @@ const dockerBuild = (platform, image) => {
       'rm -f bun.lock',
       'npm install --legacy-peer-deps --package-lock=false',
       `node scripts/package-platform.mjs ${platform}`,
-      'cp -a /project/release/. /output/',
+      `cp /project/release/${artifact} /output/${artifact}`,
     ].join('; '),
   ]);
 };
@@ -49,12 +58,12 @@ const hasArtifact = (platform) => {
   return files.includes(`JuRename-${version}.AppImage`);
 };
 
-const buildUnlessComplete = (platform, build) => {
+const buildUnlessComplete = async (platform, build) => {
   if (hasArtifact(platform)) {
     console.log(`Skipping ${platform}: release artifact for v${version} already exists.`);
     return;
   }
-  build();
+  await build();
 };
 
 const dockerInfo = spawnSync('docker', ['info', '--format', '{{.MemTotal}}'], { encoding: 'utf8' });
@@ -64,7 +73,8 @@ if (dockerInfo.status !== 0 || !Number.isFinite(dockerMemory)) {
 }
 if (dockerMemory < minimumDockerMemory) {
   throw new Error(
-    `Docker has ${(dockerMemory / 1024 ** 3).toFixed(1)} GiB of memory; at least 5 GiB is required. `
+    `Docker has ${(dockerMemory / 1024 ** 3).toFixed(1)} GiB of memory; `
+    + `at least ${(minimumDockerMemory / 1024 ** 3).toFixed(1)} GiB is required. `
     + 'Increase OrbStack or Docker Desktop resources, then retry.'
   );
 }
@@ -77,6 +87,15 @@ if (process.argv.includes('--check')) process.exit(0);
 
 mkdirSync('release', { recursive: true });
 
-buildUnlessComplete('mac', () => run(process.execPath, ['scripts/package-platform.mjs', 'mac']));
-buildUnlessComplete('win', () => dockerBuild('win', 'electronuserland/builder:wine'));
-buildUnlessComplete('linux', () => dockerBuild('linux', 'electronuserland/builder'));
+const macBuild = buildUnlessComplete(
+  'mac',
+  () => run(process.execPath, ['scripts/package-platform.mjs', 'mac']),
+);
+const dockerBuilds = (async () => {
+  await buildUnlessComplete('win', () => dockerBuild('win', 'electronuserland/builder:wine'));
+  await buildUnlessComplete('linux', () => dockerBuild('linux', 'electronuserland/builder'));
+})();
+
+const results = await Promise.allSettled([macBuild, dockerBuilds]);
+const failed = results.find((result) => result.status === 'rejected');
+if (failed) throw failed.reason;
