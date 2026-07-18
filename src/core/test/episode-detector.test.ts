@@ -1,5 +1,27 @@
 import { chineseToNumber, extractCandidates, analyzeEpisodes, formatEpisodeNumber } from '../episode-detector';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+
+const SAMPLE_DIRECTORY = new URL('./sample/', import.meta.url);
+
+function readSampleCases(sampleFile: string): Array<{ expected: number; name: string }> {
+  return readFileSync(new URL(sampleFile, SAMPLE_DIRECTORY), 'utf8')
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line !== '' && !line.startsWith('#'))
+    .map((line, index) => {
+      const separator = line.indexOf('\t');
+      if (separator < 1) {
+        throw new Error(`${sampleFile}:${index + 1} 应为“期望集数\\t文件名”格式`);
+      }
+
+      const expected = Number(line.slice(0, separator));
+      const name = line.slice(separator + 1);
+      if (!Number.isFinite(expected) || name === '') {
+        throw new Error(`${sampleFile}:${index + 1} 包含无效的期望集数或文件名`);
+      }
+      return { expected, name };
+    });
+}
 
 describe('剧集智能识别核心算法测试', () => {
 
@@ -143,41 +165,27 @@ describe('剧集智能识别核心算法测试', () => {
     expect(results[6].bestNumber).toBe(7);
   });
 
-  test('sample.txt 的完整连续序号轨道', () => {
-    const names = readFileSync(new URL('./sample.txt', import.meta.url), 'utf8')
-      .split(/\r?\n/)
-      .filter(Boolean);
-    const results = analyzeEpisodes(names.map((name, index) => ({ name, path: `/${index}` })));
+  describe('sample 目录回归样例', () => {
+    const sampleFiles = readdirSync(SAMPLE_DIRECTORY)
+      .filter(name => name.endsWith('.txt'))
+      .sort();
 
-    let checked = 0;
-    for (const result of results) {
-      const expected = result.name.match(/太莽(\d+)/);
-      if (!expected) continue;
-      expect(result.bestNumber, result.name).toBe(Number(expected[1]));
-      checked += 1;
-    }
+    test('至少包含一个样例文件', () => {
+      expect(sampleFiles.length).toBeGreaterThan(0);
+    });
 
-    expect(checked).toBe(1130);
-  });
+    test.each(sampleFiles)('%s 中的文件名都能正确识别', sampleFile => {
+      const cases = readSampleCases(sampleFile);
+      const results = analyzeEpisodes(cases.map(({ name }, index) => ({ name, path: `/${index}` })));
+      const failures = results.flatMap((result, index) =>
+        result.bestNumber === cases[index].expected
+          ? []
+          : [`期望 ${cases[index].expected}，实际 ${result.bestNumber}：${result.name}`]
+      );
 
-  test('sample2.txt 中重复的 mp3 标签不能压过补零连续序号', () => {
-    const names = readFileSync(new URL('./sample2.txt', import.meta.url), 'utf8')
-      .split(/\r?\n/)
-      .filter(Boolean);
-    const results = analyzeEpisodes(names.map((name, index) => ({ name, path: `/${index}` })));
-    const target = results.find(result => result.name === '世子很凶_069 许不令的鸿门宴mp3.m4a');
-
-    expect(target?.bestNumber).toBe(69);
-  });
-
-  test('sample2.txt 中零散的中文标题数字不能借用阿拉伯序号轨道', () => {
-    const names = readFileSync(new URL('./sample2.txt', import.meta.url), 'utf8')
-      .split(/\r?\n/)
-      .filter(Boolean);
-    const results = analyzeEpisodes(names.map((name, index) => ({ name, path: `/${index}` })));
-    const target = results.find(result => result.name === '世子很凶_131 五百次回眸.m4a');
-
-    expect(target?.bestNumber).toBe(131);
+      expect(cases.length, `${sampleFile} 没有可校验的集数样例`).toBeGreaterThan(0);
+      expect(failures, failures.join('\n')).toEqual([]);
+    });
   });
 
 });
