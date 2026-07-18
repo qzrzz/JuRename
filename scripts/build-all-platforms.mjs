@@ -1,14 +1,19 @@
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync } from 'node:fs';
 
 process.loadEnvFile?.('.env');
 
 const projectName = 'jurename-builder-node-modules';
-const minimumDockerMemory = 5 * 1024 ** 3;
+const minimumDockerMemory = 2.5 * 1024 ** 3;
 const notarizationVariables = ['APPLE_ID', 'APPLE_APP_SPECIFIC_PASSWORD', 'APPLE_TEAM_ID'];
+const version = JSON.parse(readFileSync('package.json', 'utf8')).version;
 
 const run = (command, args) => {
   const result = spawnSync(command, args, { stdio: 'inherit' });
+  if (result.error) throw result.error;
+  if (result.signal) {
+    throw new Error(`${command} was terminated by ${result.signal}. Check Docker memory and system resources.`);
+  }
   if (result.status !== 0) process.exit(result.status ?? 1);
 };
 
@@ -32,22 +37,41 @@ const dockerBuild = (platform, image) => {
   ]);
 };
 
+const hasArtifact = (platform) => readdirSync('release', { withFileTypes: true }).some((entry) => {
+  if (!entry.isFile() || !entry.name.includes(version)) return false;
+  if (platform === 'mac') return /universal-mac\.zip$/i.test(entry.name);
+  if (platform === 'win') return /\.zip$/i.test(entry.name) && !/universal-mac\.zip$/i.test(entry.name);
+  return /\.AppImage$/i.test(entry.name);
+});
+
+const buildUnlessComplete = (platform, build) => {
+  if (hasArtifact(platform)) {
+    console.log(`Skipping ${platform}: release artifact for v${version} already exists.`);
+    return;
+  }
+  build();
+};
+
 const dockerInfo = spawnSync('docker', ['info', '--format', '{{.MemTotal}}'], { encoding: 'utf8' });
 const dockerMemory = Number(dockerInfo.stdout.trim());
 if (dockerInfo.status !== 0 || !Number.isFinite(dockerMemory)) {
   throw new Error('Docker is unavailable. Start OrbStack or Docker Desktop before building release artifacts.');
 }
 if (dockerMemory < minimumDockerMemory) {
-  console.warn('Docker needs at least 5 GiB of memory for Windows cross-builds. Increase OrbStack or Docker Desktop resources, then retry.')
+  throw new Error(
+    `Docker has ${(dockerMemory / 1024 ** 3).toFixed(1)} GiB of memory; at least 5 GiB is required. `
+    + 'Increase OrbStack or Docker Desktop resources, then retry.'
+  );
 }
 const missingNotarizationVariables = notarizationVariables.filter((name) => !process.env[name]);
 if (missingNotarizationVariables.length > 0) {
   throw new Error(`Missing macOS notarization variables in .env: ${missingNotarizationVariables.join(', ')}`);
 }
 
-rmSync('release', { recursive: true, force: true });
-mkdirSync('release');
+if (process.argv.includes('--check')) process.exit(0);
 
-run(process.execPath, ['scripts/package-platform.mjs', 'mac']);
-dockerBuild('win', 'electronuserland/builder:wine');
-dockerBuild('linux', 'electronuserland/builder');
+mkdirSync('release', { recursive: true });
+
+buildUnlessComplete('mac', () => run(process.execPath, ['scripts/package-platform.mjs', 'mac']));
+buildUnlessComplete('win', () => dockerBuild('win', 'electronuserland/builder:wine'));
+buildUnlessComplete('linux', () => dockerBuild('linux', 'electronuserland/builder'));
