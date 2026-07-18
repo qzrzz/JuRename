@@ -23,6 +23,7 @@ const LARGE_CHINESE_UNITS: Record<string, number> = {
 };
 
 const CHINESE_NUMBER_RE = /[零〇一壹二两贰貳三叁參四肆五伍六陆陸七柒八捌九玖十拾百佰千仟万萬亿億]+/g;
+const MAX_CONTINUITY_SCORE_LENGTH = 50;
 
 /** Convert ordinary or financial Chinese numerals to a non-negative integer. */
 export function chineseToNumber(input: string): number {
@@ -245,9 +246,12 @@ export function analyzeEpisodes(files: { name: string; path: string }[]): FileIt
       // Continuity deliberately dominates, while repeated values continuously lose
       // confidence. This is important for embedded labels such as "mp3": even when
       // they occur in fewer than 30% of files, they must not beat a real padded track.
-      let score = sequence.length * 10_000;
-      score += sequence.length * 100;
-      score -= repeatRate * sequence.length * 20_000;
+      // Once a track is already very long, extra length is no longer stronger evidence:
+      // otherwise an unrelated 2,000-value track can overwhelm a valid 1,000-value one.
+      const continuity = Math.min(sequence.length, MAX_CONTINUITY_SCORE_LENGTH);
+      let score = continuity * 10_000;
+      score += continuity * 100;
+      score -= repeatRate * continuity * 20_000;
 
       // Prefer the earlier occurrence only after global evidence is exhausted.
       score -= candidate.index / Math.max(1, item.name.length);
