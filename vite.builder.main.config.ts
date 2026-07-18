@@ -1,6 +1,9 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+  ssr: {
+    noExternal: ['chalk'],
+  },
   build: {
     outDir: 'dist-electron',
     emptyOutDir: false,
