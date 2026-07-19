@@ -44,6 +44,22 @@ try {
 
 const version = getOutput('node', ['-p', "require('./package.json').version"]);
 const artifacts = collectFiles('release', version);
+const releaseNotes = `## 下载 JuRename
+
+请根据你的电脑选择对应版本，点击即可下载：
+
+- **Mac（Apple 芯片）**：[下载 macOS Apple 芯片版](https://github.com/qzrzz/JuRename/releases/download/v${version}/JuRename-${version}-arm64-mac.zip)（适用于 M1、M2、M3、M4 等 Apple 芯片 Mac）
+- **Mac（Intel 芯片）**：[下载 macOS Intel 版](https://github.com/qzrzz/JuRename/releases/download/v${version}/JuRename-${version}-x64-mac.zip)
+- **Windows 用户**：[下载 Windows 版](https://github.com/qzrzz/JuRename/releases/download/v${version}/JuRename-${version}-win.zip)
+- **Linux 用户**：[下载 Linux AppImage](https://github.com/qzrzz/JuRename/releases/download/v${version}/JuRename-${version}.AppImage)
+
+> 不知道 Mac 使用哪种芯片？点击屏幕左上角的“苹果菜单”→“关于本机”，查看“芯片”或“处理器”信息。
+
+下载 ZIP 后解压，打开其中的 JuRename 即可使用。
+
+---
+
+## 本次更新`;
 
 if (artifacts.length === 0) {
   throw new Error('No release artifacts were generated.');
@@ -59,4 +75,5 @@ run('gh', [
   'release', 'create', `v${version}`, ...artifacts,
   '--title', `JuRename v${version}`,
   '--generate-notes',
+  '--notes', releaseNotes,
 ]);
