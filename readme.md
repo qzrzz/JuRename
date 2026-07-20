@@ -2,7 +2,7 @@
 
 JuRename 是一个用于剧集、播客和有声书的批量重命名工具。它从杂乱的文件名中识别连续序号，将补零后的序号添加到文件名开头，让播放器按正确顺序排列。
 
-![JuRename 主界面](./website/pic/截屏00.png)
+![JuRename 主界面](./website/pic/截屏01.png)
 
 - [产品主页](https://qzrzz.github.io/JuRename/)
 - [下载最新版](https://github.com/qzrzz/JuRename/releases)
