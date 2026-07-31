@@ -6,6 +6,11 @@ interface IElectronAPI {
   selectFiles: () => Promise<string[]>;
   selectDirectory: () => Promise<string | null>;
   readDirectory: (dirPath: string) => Promise<string[]>;
+  readDirectoryFlat: (dirPath: string) => Promise<string[]>;
+  inspectDirectory: (dirPath: string) => Promise<{
+    subDirs: { name: string; path: string }[];
+    subFiles: { name: string; path: string }[];
+  }>;
   scanPaths: (paths: string[]) => Promise<string[]>;
   getFilePath: (file: File) => string;
   renameFile: (rename: { oldPath: string; newPath: string }) => Promise<{ success: boolean; error?: string }>;
