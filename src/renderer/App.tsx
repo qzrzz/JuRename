@@ -1,10 +1,17 @@
 /// <reference path="../renderer.d.ts" />
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { analyzeEpisodes, formatEpisodeNumber, FileItem } from "../core/episode-detector";
+import {
+  isBatchDirectory,
+  analyzeBatchFolder,
+  computeEpisodeSegments,
+  BatchFolderResult,
+  BatchFolderDisplayFile,
+} from "../core/batch-detector";
 import { VirtualList } from "./components/VirtualList";
 import appIconUrl from "../../icon.png";
 
-type IconName = "spark" | "file" | "folder" | "search" | "trash" | "up" | "down" | "arrow";
+type IconName = "spark" | "file" | "folder" | "search" | "trash" | "up" | "down" | "arrow" | "back";
 
 const Icon: React.FC<{ name: IconName; size?: number }> = ({ name, size = 16 }) => {
   const paths: Record<IconName, React.ReactNode> = {
@@ -45,6 +52,7 @@ const Icon: React.FC<{ name: IconName; size?: number }> = ({ name, size = 16 }) 
         <path d="M4 11h13M12 6l5 5-5 5" />
       </>
     ),
+    back: <path d="M19 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H19v-2z" fill="currentColor" />,
   };
 
   return (
@@ -65,14 +73,9 @@ const Icon: React.FC<{ name: IconName; size?: number }> = ({ name, size = 16 }) 
   );
 };
 
-// 扩展 FileItem，加入前端交互状态
-interface DisplayFileItem extends FileItem {
-  checked: boolean;
-}
-
 // 混合列表中可能是文件项，也可能是缺失序号提示占位项
 type MixListItem =
-  | { isMissingPlaceholder: false; file: DisplayFileItem }
+  | { isMissingPlaceholder: false; file: BatchFolderDisplayFile }
   | { isMissingPlaceholder: true; start: number; end: number; length: number };
 
 type RenamePhase = "idle" | "running" | "completed";
@@ -86,6 +89,8 @@ interface RenameResultItem {
   error?: string;
 }
 
+type ViewMode = "single" | "batch-list" | "batch-detail";
+
 const SEPARATOR_OPTIONS = [
   { value: "-", label: "短横线", preview: "-" },
   { value: "·", label: "间隔点", preview: "·" },
@@ -97,8 +102,31 @@ const SEPARATOR_OPTIONS = [
 
 export const App: React.FC = () => {
   const supportsPathDrop = window.electronAPI.supportsPathDrop !== false;
-  const [files, setFiles] = useState<DisplayFileItem[]>([]);
-  // 自动根据所有有效集数中最大的整数长度来决定补零宽度，最小 2 位
+
+  // 视图模式与批量分析状态
+  const [viewMode, setViewMode] = useState<ViewMode>("single");
+  const [batchFolders, setBatchFolders] = useState<BatchFolderResult[]>([]);
+  const [activeBatchFolderId, setActiveBatchFolderId] = useState<string | null>(null);
+
+  // 单文件夹 / 当前详细查看文件夹的文件列表
+  const [files, setFiles] = useState<BatchFolderDisplayFile[]>([]);
+  const [separator, setSeparator] = useState<string>("-");
+  const [keyword, setKeyword] = useState<string>("");
+
+  // 搜索与定位状态
+  const [searchResults, setSearchResults] = useState<number[]>([]);
+  const [currentSearchIndex, setCurrentSearchIndex] = useState<number>(-1);
+  const [dragActive, setDragActive] = useState<boolean>(false);
+  const [renamePhase, setRenamePhase] = useState<RenamePhase>("idle");
+  const [renameTotal, setRenameTotal] = useState(0);
+  const [renameResults, setRenameResults] = useState<RenameResultItem[]>([]);
+  const [currentRenameName, setCurrentRenameName] = useState("");
+  const [separatorMenuOpen, setSeparatorMenuOpen] = useState(false);
+
+  const scrollToIndexRef = useRef<((index: number) => void) | null>(null);
+  const separatorControlRef = useRef<HTMLDivElement>(null);
+
+  // 计算当前查看文件的补零宽度，最小 2 位
   const paddingWidth = useMemo(() => {
     if (files.length === 0) return 2;
     let maxVal = 0;
@@ -110,22 +138,6 @@ export const App: React.FC = () => {
     }
     return Math.max(2, maxVal.toString().length);
   }, [files]);
-  const [separator, setSeparator] = useState<string>("-");
-  const [keyword, setKeyword] = useState<string>("");
-
-  // 搜索相关的索引定位状态
-  const [searchResults, setSearchResults] = useState<number[]>([]);
-  const [currentSearchIndex, setCurrentSearchIndex] = useState<number>(-1);
-  const [dragActive, setDragActive] = useState<boolean>(false);
-  const [renamePhase, setRenamePhase] = useState<RenamePhase>("idle");
-  const [renameTotal, setRenameTotal] = useState(0);
-  const [renameResults, setRenameResults] = useState<RenameResultItem[]>([]);
-  const [currentRenameName, setCurrentRenameName] = useState("");
-  const [separatorMenuOpen, setSeparatorMenuOpen] = useState(false);
-
-  // 虚拟列表的滚动方法引用
-  const scrollToIndexRef = useRef<((index: number) => void) | null>(null);
-  const separatorControlRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const closeSeparatorMenu = (event: MouseEvent) => {
@@ -144,7 +156,7 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // 从绝对路径中安全截取文件名和目录前缀
+  // 从绝对路径中截取文件名与目录
   const splitPath = (fullPath: string) => {
     const lastSlash = Math.max(fullPath.lastIndexOf("/"), fullPath.lastIndexOf("\\"));
     const dir = fullPath.substring(0, lastSlash + 1);
@@ -152,11 +164,10 @@ export const App: React.FC = () => {
     return { dir, name };
   };
 
-  // 重新对所有文件运行智能集数检测算法
+  // 重新对文件集合进行智能序号检测
   const reAnalyzeFiles = (currentFiles: { name: string; path: string; checked?: boolean }[]) => {
     const analyzed = analyzeEpisodes(currentFiles);
     return analyzed.map((item, idx) => {
-      // 保持之前的勾选状态，若无则默认勾选
       const prevChecked = currentFiles[idx]?.checked !== false;
       return {
         ...item,
@@ -165,89 +176,91 @@ export const App: React.FC = () => {
     });
   };
 
-  // 使用拖入或选择的路径开启一个新任务（不与当前列表合并）
-  const openPathsAsNewTask = async (paths: string[]) => {
+  // 当在 batch-detail 试图下同步更新当前文件夹的修改回 batchFolders
+  const syncCurrentFilesToBatch = (updatedFiles: BatchFolderDisplayFile[]) => {
+    if (!activeBatchFolderId) return;
+    setBatchFolders((prev) =>
+      prev.map((folder) => {
+        if (folder.id === activeBatchFolderId) {
+          const detectedCount = updatedFiles.filter((f) => Number.isFinite(f.bestNumber)).length;
+          const renameableCount = updatedFiles.filter((f) => f.checked && Number.isFinite(f.bestNumber)).length;
+          const { continuousSegments, missingSegments, missingCount } = computeEpisodeSegments(updatedFiles);
+          return {
+            ...folder,
+            files: updatedFiles,
+            totalCount: updatedFiles.length,
+            detectedCount,
+            renameableCount,
+            continuousSegments,
+            missingSegments,
+            missingCount,
+          };
+        }
+        return folder;
+      })
+    );
+  };
+
+  // 扫描与判定逻辑：入口
+  const processSelectedPaths = async (paths: string[]) => {
     if (paths.length === 0 || renamePhase === "running") return;
+
     try {
-      // 展开混合目录与文件
-      const expandedPaths = await window.electronAPI.scanPaths(paths);
+      // 1. 如果只传入了 1 个路径且是文件夹，先检查直属一层项
+      if (paths.length === 1) {
+        const inspect = await window.electronAPI.inspectDirectory(paths[0]);
+        if (inspect) {
+          const { subDirs, subFiles } = inspect;
+          // 判定规则：子文件全是文件夹（subDirs > 0 且 subFiles == 0）或 3个以上文件夹、3个以下文件
+          if (isBatchDirectory(subDirs.length, subFiles.length)) {
+            await loadBatchFolders(subDirs);
+            return;
+          }
+        }
+      } else if (paths.length > 1) {
+        // 如果同时拖入了多个路径，检查其中是否主要是文件夹，若全为/多数为文件夹则走批量
+        const subDirs: { name: string; path: string }[] = [];
+        for (const p of paths) {
+          const { name } = splitPath(p);
+          subDirs.push({ name, path: p });
+        }
+        await loadBatchFolders(subDirs);
+        return;
+      }
 
-      // 转换为基础文件信息并按绝对路径去重
-      const newBaseFiles = expandedPaths.map((p: string) => {
-        const { name } = splitPath(p);
-        return { name, path: p, checked: true };
-      });
-      const uniqueMap = new Map<string, (typeof newBaseFiles)[0]>();
-      newBaseFiles.forEach((file) => uniqueMap.set(file.path, file));
-
-      setFiles(reAnalyzeFiles(Array.from(uniqueMap.values())));
-      setKeyword("");
-      setSearchResults([]);
-      setCurrentSearchIndex(-1);
-      setRenamePhase("idle");
-      setRenameTotal(0);
-      setRenameResults([]);
-      setCurrentRenameName("");
+      // 2. 传统单文件夹模式
+      setViewMode("single");
+      setBatchFolders([]);
+      setActiveBatchFolderId(null);
+      await openPathsAsSingleTask(paths);
     } catch (err) {
-      console.error("打开新任务失败:", err);
+      console.error("处理选择路径出错:", err);
+      // 降级为单文件夹尝试
+      setViewMode("single");
+      await openPathsAsSingleTask(paths);
     }
   };
 
-  // 选择一个文件夹并作为新任务打开
-  const handleOpenDirectory = async () => {
-    if (renamePhase === "running") return;
-    try {
-      const dir = await window.electronAPI.selectDirectory();
-      if (dir) {
-        await openPathsAsNewTask([dir]);
+  // 加载并分析批量子文件夹（仅一层，无递归嵌套）
+  const loadBatchFolders = async (subDirs: { name: string; path: string }[]) => {
+    const results: BatchFolderResult[] = [];
+    for (const dir of subDirs) {
+      try {
+        const rawPaths = await window.electronAPI.readDirectoryFlat(dir.path);
+        const rawFiles = rawPaths.map((p) => ({
+          name: splitPath(p).name,
+          path: p,
+        }));
+        const folderResult = analyzeBatchFolder(dir.path, dir.name, rawFiles);
+        results.push(folderResult);
+      } catch (err) {
+        console.error(`读取子文件夹 ${dir.name} 失败:`, err);
       }
-    } catch (error) {
-      console.error("打开文件夹失败:", error);
-      const message =
-        error instanceof Error
-          ? error.message
-          : typeof error === "object" && error !== null && "message" in error
-            ? String(error.message)
-            : String(error);
-      alert(`无法打开文件夹：${message}`);
     }
-  };
 
-  // 单项文件勾选与其它状态保持不变
-
-  // 改变单项的勾选状态
-  const toggleFileChecked = (index: number) => {
-    setFiles((prev) => {
-      const next = [...prev];
-      if (next[index]) {
-        next[index].checked = !next[index].checked;
-      }
-      return next;
-    });
-  };
-
-  // 一键全选/取消全选
-  const isAllChecked = files.length > 0 && files.every((f) => f.checked);
-  const toggleAllChecked = () => {
-    setFiles((prev) => {
-      const target = !isAllChecked;
-      return prev.map((f) => ({ ...f, checked: target }));
-    });
-  };
-
-  // 清空列表
-  const clearList = () => {
-    if (renamePhase !== "idle") return;
-    setFiles([]);
-    setKeyword("");
-    setSearchResults([]);
-    setCurrentSearchIndex(-1);
-    setRenameResults([]);
-    setRenameTotal(0);
-  };
-
-  const returnToStart = () => {
-    if (renamePhase !== "completed") return;
+    setBatchFolders(results);
+    setActiveBatchFolderId(null);
+    setViewMode("batch-list");
     setFiles([]);
     setKeyword("");
     setSearchResults([]);
@@ -258,7 +271,113 @@ export const App: React.FC = () => {
     setCurrentRenameName("");
   };
 
-  // 排序文件列表：按提取出的序号升序。无序号 (NaN) 的文件放在最后
+  // 作为传统单任务打开
+  const openPathsAsSingleTask = async (paths: string[]) => {
+    const expandedPaths = await window.electronAPI.scanPaths(paths);
+    const newBaseFiles = expandedPaths.map((p: string) => {
+      const { name } = splitPath(p);
+      return { name, path: p, checked: true };
+    });
+    const uniqueMap = new Map<string, (typeof newBaseFiles)[0]>();
+    newBaseFiles.forEach((file) => uniqueMap.set(file.path, file));
+
+    setFiles(reAnalyzeFiles(Array.from(uniqueMap.values())));
+    setKeyword("");
+    setSearchResults([]);
+    setCurrentSearchIndex(-1);
+    setRenamePhase("idle");
+    setRenameTotal(0);
+    setRenameResults([]);
+    setCurrentRenameName("");
+  };
+
+  // 点击“打开文件夹”
+  const handleOpenDirectory = async () => {
+    if (renamePhase === "running") return;
+    try {
+      const dir = await window.electronAPI.selectDirectory();
+      if (dir) {
+        await processSelectedPaths([dir]);
+      }
+    } catch (error) {
+      console.error("打开文件夹失败:", error);
+    }
+  };
+
+  // 进入某个子文件夹的详细分析页面
+  const enterBatchDetail = (folder: BatchFolderResult) => {
+    setActiveBatchFolderId(folder.id);
+    setFiles(folder.files);
+    setViewMode("batch-detail");
+    setKeyword("");
+    setSearchResults([]);
+    setCurrentSearchIndex(-1);
+  };
+
+  // 从详细分析页面返回到批量文件夹列表
+  const backToBatchList = () => {
+    setViewMode("batch-list");
+    setActiveBatchFolderId(null);
+    setFiles([]);
+  };
+
+  // 改变文件勾选状态
+  const toggleFileChecked = (index: number) => {
+    setFiles((prev) => {
+      const next = [...prev];
+      if (next[index]) {
+        next[index].checked = !next[index].checked;
+      }
+      if (viewMode === "batch-detail") {
+        syncCurrentFilesToBatch(next);
+      }
+      return next;
+    });
+  };
+
+  // 全选 / 取消全选
+  const isAllChecked = files.length > 0 && files.every((f) => f.checked);
+  const toggleAllChecked = () => {
+    setFiles((prev) => {
+      const target = !isAllChecked;
+      const next = prev.map((f) => ({ ...f, checked: target }));
+      if (viewMode === "batch-detail") {
+        syncCurrentFilesToBatch(next);
+      }
+      return next;
+    });
+  };
+
+  // 清空列表
+  const clearList = () => {
+    if (renamePhase !== "idle") return;
+    setFiles([]);
+    setBatchFolders([]);
+    setActiveBatchFolderId(null);
+    setViewMode("single");
+    setKeyword("");
+    setSearchResults([]);
+    setCurrentSearchIndex(-1);
+    setRenameResults([]);
+    setRenameTotal(0);
+  };
+
+  const returnToStart = () => {
+    if (renamePhase !== "completed") return;
+    setFiles([]);
+    setBatchFolders([]);
+    setActiveBatchFolderId(null);
+    setViewMode("single");
+    setKeyword("");
+    setSearchResults([]);
+    setCurrentSearchIndex(-1);
+    setRenamePhase("idle");
+    setRenameTotal(0);
+    setRenameResults([]);
+    setCurrentRenameName("");
+  };
+
+  // 排序文件列表：按提取出的序号升序
   const sortedFiles = useMemo(() => {
     return [...files].sort((a, b) => {
       if (isNaN(a.bestNumber) && isNaN(b.bestNumber)) return a.name.localeCompare(b.name);
@@ -268,19 +387,16 @@ export const App: React.FC = () => {
     });
   }, [files]);
 
-  // 根据排序后的文件生成包含“缺失占位行”的最终混合列表
+  // 生成包含缺失序号指示行的 mixList
   const mixList = useMemo(() => {
     const list: MixListItem[] = [];
     if (sortedFiles.length === 0) return list;
 
     let prevInt = NaN;
-
     sortedFiles.forEach((file) => {
       const currentInt = Math.floor(file.bestNumber);
-
       if (!isNaN(currentInt)) {
         if (!isNaN(prevInt) && currentInt - prevInt > 1) {
-          // 发现了缺失的整数序号区间，插入一个缺失指示占位项
           list.push({
             isMissingPlaceholder: true,
             start: prevInt + 1,
@@ -290,7 +406,6 @@ export const App: React.FC = () => {
         }
         prevInt = currentInt;
       }
-
       list.push({
         isMissingPlaceholder: false,
         file,
@@ -300,45 +415,12 @@ export const App: React.FC = () => {
     return list;
   }, [sortedFiles]);
 
-  // 计算连续区间和缺省区间，用于底部的序号信息栏
+  // 计算当前查看文件的连续与缺省段
   const { continuousSegments, missingSegments } = useMemo(() => {
-    // 提取排序后所有非重复的整数序号
-    const ints = Array.from(
-      new Set(sortedFiles.map((f) => Math.floor(f.bestNumber)).filter((n) => !isNaN(n))),
-    ).sort((a, b) => a - b);
+    return computeEpisodeSegments(files);
+  }, [files]);
 
-    const continuous: { start: number; end: number }[] = [];
-    if (ints.length > 0) {
-      let start = ints[0];
-      let end = ints[0];
-      for (let idx = 1; idx < ints.length; idx++) {
-        if (ints[idx] === end + 1) {
-          end = ints[idx];
-        } else {
-          continuous.push({ start, end });
-          start = ints[idx];
-          end = ints[idx];
-        }
-      }
-      continuous.push({ start, end });
-    }
-
-    const missing: { start: number; end: number }[] = [];
-    for (let idx = 0; idx < continuous.length - 1; idx++) {
-      const prevEnd = continuous[idx].end;
-      const nextStart = continuous[idx + 1].start;
-      if (nextStart - prevEnd > 1) {
-        missing.push({
-          start: prevEnd + 1,
-          end: nextStart - 1,
-        });
-      }
-    }
-
-    return { continuousSegments: continuous, missingSegments: missing };
-  }, [sortedFiles]);
-
-  // 全局阻止默认的拖放行为并管理窗口全局拖拽状态
+  // 全局拖放支持
   useEffect(() => {
     if (!supportsPathDrop) return;
 
@@ -352,7 +434,6 @@ export const App: React.FC = () => {
     const handleDragLeave = (e: DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      // 只有当鼠标移出窗口时才关闭拖拽状态
       if (e.clientX === 0 && e.clientY === 0) {
         setDragActive(false);
       }
@@ -371,7 +452,7 @@ export const App: React.FC = () => {
           const fPath = window.electronAPI.getFilePath(file);
           if (fPath) paths.push(fPath);
         }
-        await openPathsAsNewTask(paths);
+        await processSelectedPaths(paths);
       }
     };
 
@@ -384,9 +465,9 @@ export const App: React.FC = () => {
       window.removeEventListener("dragleave", handleDragLeave);
       window.removeEventListener("drop", handleDropEvent);
     };
-  }, [files, renamePhase, supportsPathDrop]);
+  }, [renamePhase, supportsPathDrop]);
 
-  // 搜索关键词检索
+  // 搜索过滤
   useEffect(() => {
     if (!keyword) {
       setSearchResults([]);
@@ -399,7 +480,6 @@ export const App: React.FC = () => {
 
     mixList.forEach((item, idx) => {
       if (!item.isMissingPlaceholder) {
-        // 在原文件名和智能生成的新文件名中匹配
         const formattedNum = formatEpisodeNumber(item.file.bestNumber, paddingWidth);
         const newName = `${formattedNum}${separator}${item.file.name}`;
         if (
@@ -415,24 +495,16 @@ export const App: React.FC = () => {
     setCurrentSearchIndex(results.length > 0 ? 0 : -1);
   }, [keyword, mixList, paddingWidth, separator]);
 
-  // 定位跳转
   const handleSearchNext = () => {
     if (searchResults.length === 0) return;
-    setCurrentSearchIndex((prev) => {
-      const nextIdx = (prev + 1) % searchResults.length;
-      return nextIdx;
-    });
+    setCurrentSearchIndex((prev) => (prev + 1) % searchResults.length);
   };
 
   const handleSearchPrev = () => {
     if (searchResults.length === 0) return;
-    setCurrentSearchIndex((prev) => {
-      const nextIdx = (prev - 1 + searchResults.length) % searchResults.length;
-      return nextIdx;
-    });
+    setCurrentSearchIndex((prev) => (prev - 1 + searchResults.length) % searchResults.length);
   };
 
-  // 点击信息栏的连续/缺省段进行滚动定位
   const scrollToSegment = (startVal: number, isMissing: boolean) => {
     if (!scrollToIndexRef.current) return;
     const targetIdx = mixList.findIndex((item) => {
@@ -442,13 +514,12 @@ export const App: React.FC = () => {
         return !item.isMissingPlaceholder && Math.floor(item.file.bestNumber) === startVal;
       }
     });
-
     if (targetIdx !== -1) {
       scrollToIndexRef.current(targetIdx);
     }
   };
 
-  // 逐个执行物理重命名，让界面可以展示实时进度与单项错误
+  // 执行单文件夹或当前视图下的物理重命名
   const handleRename = async () => {
     const renames = files
       .filter((f) => f.checked && !isNaN(f.bestNumber))
@@ -500,7 +571,73 @@ export const App: React.FC = () => {
     setRenamePhase("completed");
   };
 
-  // 渲染单行
+  // 在批量列表模式下，一键重命名所有已分析子文件夹中勾选的文件
+  const handleBatchRenameAll = async () => {
+    if (batchFolders.length === 0 || renamePhase !== "running" && renamePhase === "completed") return;
+
+    const allRenames: { oldPath: string; newPath: string; oldName: string; newName: string }[] = [];
+    batchFolders.forEach((folder) => {
+      // 算出该文件夹的补零宽度
+      let maxVal = 0;
+      folder.files.forEach((f) => {
+        if (!isNaN(f.bestNumber)) {
+          const intPart = Math.floor(f.bestNumber);
+          if (intPart > maxVal) maxVal = intPart;
+        }
+      });
+      const folderPadding = Math.max(2, maxVal.toString().length);
+
+      folder.files.forEach((f) => {
+        if (f.checked && !isNaN(f.bestNumber)) {
+          const { dir } = splitPath(f.path);
+          const formattedNum = formatEpisodeNumber(f.bestNumber, folderPadding);
+          const newName = `${formattedNum}${separator}${f.name}`;
+          allRenames.push({
+            oldPath: f.path,
+            newPath: `${dir}${newName}`,
+            oldName: f.name,
+            newName,
+          });
+        }
+      });
+    });
+
+    if (allRenames.length === 0) return;
+
+    const confirmText = `确定要一键重命名所有 ${batchFolders.length} 个子文件夹中的 ${allRenames.length} 个文件吗？此操作无法撤销。`;
+    if (!confirm(confirmText)) return;
+
+    setRenameTotal(allRenames.length);
+    setRenameResults([]);
+    setRenamePhase("running");
+
+    for (const rename of allRenames) {
+      setCurrentRenameName(rename.newName);
+      let resultItem: RenameResultItem;
+      try {
+        const result = await window.electronAPI.renameFile({
+          oldPath: rename.oldPath,
+          newPath: rename.newPath,
+        });
+        resultItem = {
+          ...rename,
+          status: result.success ? "success" : "failed",
+          error: result.error,
+        };
+      } catch (error) {
+        resultItem = {
+          ...rename,
+          status: "failed",
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+      setRenameResults((prev) => [...prev, resultItem]);
+    }
+
+    setCurrentRenameName("");
+    setRenamePhase("completed");
+  };
+
   const renderListItem = (item: MixListItem, index: number) => {
     if (item.isMissingPlaceholder) {
       return (
@@ -513,7 +650,6 @@ export const App: React.FC = () => {
     }
 
     const { file } = item;
-    // 找出原文件在 files 数组中的原始索引
     const rawIndex = files.findIndex((f) => f.path === file.path);
     const formattedNum = formatEpisodeNumber(file.bestNumber, paddingWidth);
 
@@ -557,7 +693,6 @@ export const App: React.FC = () => {
     </div>
   );
 
-  // 计算当前高亮可视索引
   const activeHighlightIndex = useMemo(() => {
     if (currentSearchIndex >= 0 && searchResults[currentSearchIndex] !== undefined) {
       return searchResults[currentSearchIndex];
@@ -579,6 +714,12 @@ export const App: React.FC = () => {
   const renameProgress =
     renameTotal === 0 ? 0 : Math.round((renameResults.length / renameTotal) * 100);
 
+  // 批量数据统计
+  const batchTotalFiles = batchFolders.reduce((acc, f) => acc + f.totalCount, 0);
+  const batchDetectedFiles = batchFolders.reduce((acc, f) => acc + f.detectedCount, 0);
+  const batchMissingTotal = batchFolders.reduce((acc, f) => acc + f.missingCount, 0);
+  const batchRenameableTotal = batchFolders.reduce((acc, f) => acc + f.renameableCount, 0);
+
   return (
     <main className="app-container">
       {window.electronAPI.closeApp && (
@@ -591,6 +732,7 @@ export const App: React.FC = () => {
           ×
         </button>
       )}
+
       {/* 拖拽全屏发光覆盖层 */}
       {supportsPathDrop && dragActive && (
         <div className="drag-overlay">
@@ -599,24 +741,47 @@ export const App: React.FC = () => {
               <Icon name="folder" size={34} />
             </div>
             <div className="drag-overlay-text">松开即可开始识别</div>
-            <div className="drag-overlay-subtext">支持文件与文件夹，导入后自动生成排序预览</div>
+            <div className="drag-overlay-subtext">支持单集文件夹与批量子文件夹拖入分析</div>
           </div>
         </div>
       )}
+
       {/* 头部控制栏 */}
       <header className="header-bar">
-        <div className="header-title-section">
-          <div className="brand-mark">
-            <img src={appIconUrl} alt="" />
+        {viewMode === "batch-detail" ? (
+          <div className="batch-breadcrumb">
+            <button
+              className="btn-back-batch"
+              onClick={backToBatchList}
+              id="btn-back-to-batch"
+              aria-label="返回批量文件夹列表"
+            >
+              <Icon name="back" size={14} />
+              返回批量列表
+            </button>
+            <div className="batch-detail-title-group">
+              <h1 className="header-title" style={{ fontSize: 16 }}>
+                {batchFolders.find((f) => f.id === activeBatchFolderId)?.folderName || "文件夹详情"}
+              </h1>
+              <span className="header-subtitle">批量文件夹分析 - 单项详细列表</span>
+            </div>
           </div>
-          <div>
-            <h1 className="header-title">JuRename</h1>
-            <span className="header-subtitle">让文件名有正确序号</span>
+        ) : (
+          <div className="header-title-section">
+            <div className="brand-mark">
+              <img src={appIconUrl} alt="" />
+            </div>
+            <div>
+              <h1 className="header-title">JuRename</h1>
+              <span className="header-subtitle">
+                {viewMode === "batch-list" ? "批量文件夹分析模式" : "让文件名有正确序号"}
+              </span>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="controls-wrapper">
-          {files.length > 0 && renamePhase === "idle" && (
+          {(files.length > 0 || batchFolders.length > 0) && renamePhase === "idle" && (
             <>
               <div className="separator-combobox" ref={separatorControlRef}>
                 <div className={`input-group separator-control ${separatorMenuOpen ? "open" : ""}`}>
@@ -668,45 +833,47 @@ export const App: React.FC = () => {
                 )}
               </div>
 
-              <div className="search-control">
-                <Icon name="search" size={15} />
-                <input
-                  type="text"
-                  className="input-field search-field"
-                  placeholder="搜索文件名"
-                  value={keyword}
-                  onChange={(event) => setKeyword(event.target.value)}
-                  id="input-search"
-                  aria-label="搜索文件名"
-                />
-                {keyword && (
-                  <span className="search-count">
-                    {searchResults.length
-                      ? `${currentSearchIndex + 1}/${searchResults.length}`
-                      : "0"}
-                  </span>
-                )}
-                {searchResults.length > 0 && (
-                  <div className="search-nav">
-                    <button
-                      className="icon-btn"
-                      onClick={handleSearchPrev}
-                      id="btn-search-prev"
-                      aria-label="上一个搜索结果"
-                    >
-                      <Icon name="up" size={14} />
-                    </button>
-                    <button
-                      className="icon-btn"
-                      onClick={handleSearchNext}
-                      id="btn-search-next"
-                      aria-label="下一个搜索结果"
-                    >
-                      <Icon name="down" size={14} />
-                    </button>
-                  </div>
-                )}
-              </div>
+              {viewMode !== "batch-list" && (
+                <div className="search-control">
+                  <Icon name="search" size={15} />
+                  <input
+                    type="text"
+                    className="input-field search-field"
+                    placeholder="搜索文件名"
+                    value={keyword}
+                    onChange={(event) => setKeyword(event.target.value)}
+                    id="input-search"
+                    aria-label="搜索文件名"
+                  />
+                  {keyword && (
+                    <span className="search-count">
+                      {searchResults.length
+                        ? `${currentSearchIndex + 1}/${searchResults.length}`
+                        : "0"}
+                    </span>
+                  )}
+                  {searchResults.length > 0 && (
+                    <div className="search-nav">
+                      <button
+                        className="icon-btn"
+                        onClick={handleSearchPrev}
+                        id="btn-search-prev"
+                        aria-label="上一个搜索结果"
+                      >
+                        <Icon name="up" size={14} />
+                      </button>
+                      <button
+                        className="icon-btn"
+                        onClick={handleSearchNext}
+                        id="btn-search-next"
+                        aria-label="下一个搜索结果"
+                      >
+                        <Icon name="down" size={14} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <button className="btn btn-quiet" onClick={clearList} id="btn-clear-list">
                 <Icon name="trash" size={15} />
@@ -737,9 +904,11 @@ export const App: React.FC = () => {
         </div>
       </header>
       <div className="drag-bk"></div>
-      {/* 主列表区域 */}
+
+      {/* 主视图展示区域 */}
       <section className={`list-container ${dragActive ? "drag-active" : ""}`}>
-        {files.length === 0 ? (
+        {files.length === 0 && batchFolders.length === 0 ? (
+          /* 初始拖放 / 空面板 */
           <div className="dropzone" id="div-dropzone">
             <div className="dropzone-content">
               <div className="dropzone-visual">
@@ -753,11 +922,11 @@ export const App: React.FC = () => {
                   <Icon name="spark" size={17} />
                 </span>
               </div>
-              <span className="dropzone-eyebrow">智能序号识别</span>
-              <h2 className="dropzone-title">把杂乱文件，整理成正确顺序</h2>
+              <span className="dropzone-eyebrow">智能序号与批量分析</span>
+              <h2 className="dropzone-title">把杂乱文件与文件夹，整理成正确顺序</h2>
               <p className="dropzone-subtext">
                 {supportsPathDrop
-                  ? "拖入剧集文件或整个文件夹，JuRename 会提取连续序号并生成安全的重命名预览。"
+                  ? "拖入单剧集文件、整个文件夹或包含多季/多剧集的总文件夹，JuRename 将自动识别并生成安全的重命名预览。"
                   : "选择剧集文件夹，JuRename 会提取连续序号并生成安全的重命名预览。"}
               </p>
               <div className="dropzone-actions">
@@ -777,6 +946,9 @@ export const App: React.FC = () => {
                 <i>01</i>连续数字优先
               </span>
               <span>
+                <i>📁</i>批量文件夹分析
+              </span>
+              <span>
                 <i>二</i>支持中文数字
               </span>
               <span>
@@ -785,6 +957,7 @@ export const App: React.FC = () => {
             </div>
           </div>
         ) : renamePhase !== "idle" ? (
+          /* 重命名执行与完成阶段 */
           <div className="rename-workspace" aria-live="polite">
             <div className="rename-progress-header">
               <div>
@@ -862,9 +1035,116 @@ export const App: React.FC = () => {
               )}
             </div>
           </div>
+        ) : viewMode === "batch-list" ? (
+          /* 批量文件夹分析结果列表界面 */
+          <div className="batch-container">
+            {/* 批量总体统计数据 Bar */}
+            <div className="batch-summary-strip">
+              <div className="batch-summary-card">
+                <strong>{batchFolders.length}</strong>
+                <span>子文件夹数</span>
+              </div>
+              <div className="batch-summary-card">
+                <strong>{batchTotalFiles}</strong>
+                <span>文件总数</span>
+              </div>
+              <div className="batch-summary-card">
+                <strong>{batchDetectedFiles} / {batchTotalFiles}</strong>
+                <span>序号识别数</span>
+              </div>
+              <div className={`batch-summary-card ${batchMissingTotal > 0 ? "has-warning" : ""}`}>
+                <strong>{batchMissingTotal}</strong>
+                <span>缺省序号集数</span>
+              </div>
+            </div>
+
+            {/* 各个子文件夹分析卡片网格列表 */}
+            <div className="batch-folder-grid">
+              {batchFolders.map((folder) => (
+                <div
+                  key={folder.id}
+                  className="batch-folder-card"
+                  onClick={() => enterBatchDetail(folder)}
+                >
+                  <div>
+                    <div className="batch-folder-header">
+                      <div className="batch-folder-title-wrapper">
+                        <span className="batch-folder-icon">
+                          <Icon name="folder" size={18} />
+                        </span>
+                        <div className="batch-folder-info">
+                          <div className="batch-folder-title" title={folder.folderName}>
+                            {folder.folderName}
+                          </div>
+                          <div className="batch-folder-path" title={folder.folderPath}>
+                            {folder.folderPath}
+                          </div>
+                        </div>
+                      </div>
+                      <span
+                        className={`batch-folder-badge ${
+                          folder.missingCount > 0 ? "warning" : "success"
+                        }`}
+                      >
+                        {folder.missingCount > 0
+                          ? `缺少 ${folder.missingCount} 集`
+                          : "序号完整"}
+                      </span>
+                    </div>
+
+                    <div className="batch-folder-segments" style={{ marginTop: 12 }}>
+                      <div className="batch-segment-line">
+                        <span className="batch-segment-label">连续序号:</span>
+                        <div className="batch-pills">
+                          {folder.continuousSegments.length === 0 ? (
+                            <span className="info-empty">无</span>
+                          ) : (
+                            folder.continuousSegments.map((seg, i) => (
+                              <span key={i} className="pill pill-success">
+                                {seg.start === seg.end ? `${seg.start}` : `${seg.start}-${seg.end}`}
+                              </span>
+                            ))
+                          )}
+                        </div>
+                      </div>
+
+                      {folder.missingSegments.length > 0 && (
+                        <div className="batch-segment-line">
+                          <span className="batch-segment-label">缺省序号:</span>
+                          <div className="batch-pills">
+                            {folder.missingSegments.map((seg, i) => (
+                              <span key={i} className="pill pill-danger">
+                                {seg.start === seg.end ? `${seg.start}` : `${seg.start}-${seg.end}`}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="batch-folder-footer">
+                    <span className="batch-file-count">
+                      已识别 {folder.detectedCount}/{folder.totalCount} 个文件
+                    </span>
+                    <button
+                      type="button"
+                      className="btn-detail-link"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        enterBatchDetail(folder);
+                      }}
+                    >
+                      详细结果 <Icon name="arrow" size={12} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         ) : (
+          /* 单文件夹视图 或 子文件夹详细分析视图 */
           <div className="list-layout">
-            {/* 顶栏操作：全选 */}
             <div className="list-toolbar">
               <button
                 className={`checkbox-custom ${isAllChecked ? "checked" : ""}`}
@@ -895,90 +1175,142 @@ export const App: React.FC = () => {
       </section>
 
       {/* 底部控制与信息栏 */}
-      {files.length > 0 && (
+      {(files.length > 0 || batchFolders.length > 0) && (
         <footer className="footer-section">
-          {/* 序号信息栏 */}
-          <div className="info-bar" id="div-info-bar">
-            <div className="info-summary">
-              <div>
-                <strong>{detectedCount}</strong>
-                <span>已识别</span>
+          {viewMode === "batch-list" ? (
+            /* 批量列表底栏 */
+            <div className="info-bar" id="div-info-bar">
+              <div className="info-summary">
+                <div>
+                  <strong>{batchFolders.length}</strong>
+                  <span>分析文件夹</span>
+                </div>
+                <div>
+                  <strong>{batchDetectedFiles}</strong>
+                  <span>已识别文件</span>
+                </div>
+                <div className={batchMissingTotal > 0 ? "has-missing" : ""}>
+                  <strong>{batchMissingTotal}</strong>
+                  <span>缺失集数</span>
+                </div>
               </div>
-              <div>
-                <strong>{continuousSegments.length}</strong>
-                <span>连续区间</span>
-              </div>
-              <div className={missingCount > 0 ? "has-missing" : ""}>
-                <strong>{missingCount}</strong>
-                <span>缺少序号</span>
-              </div>
-            </div>
-            {/* 连续序号 */}
-            <div className="info-row">
-              <span className="info-label">连续序号</span>
-              <div className="pills-container">
-                {continuousSegments.length === 0 ? (
-                  <span className="info-empty">无</span>
-                ) : (
-                  continuousSegments.map((seg, i) => (
-                    <span
-                      key={i}
-                      className="pill pill-success"
-                      onClick={() => scrollToSegment(seg.start, false)}
-                      id={`pill-cont-${seg.start}`}
-                    >
-                      {seg.start === seg.end ? `${seg.start}` : `${seg.start} - ${seg.end}`}
-                    </span>
-                  ))
-                )}
+              <div className="info-row">
+                <span className="info-label">批量说明</span>
+                <span className="info-empty" style={{ fontSize: 12 }}>
+                  点击任意文件夹查看详细分析结果或调整勾选；点击右侧一键批量重命名。
+                </span>
               </div>
             </div>
-            {/* 缺省序号 */}
-            <div className="info-row">
-              <span className="info-label">缺省序号</span>
-              <div className="pills-container">
-                {missingSegments.length === 0 ? (
-                  <span className="info-empty info-success">序号完整</span>
-                ) : (
-                  missingSegments.map((seg, i) => (
-                    <span
-                      key={i}
-                      className="pill pill-danger"
-                      onClick={() => scrollToSegment(seg.start, true)}
-                      id={`pill-miss-${seg.start}`}
-                    >
-                      {seg.start === seg.end ? `${seg.start}` : `${seg.start} - ${seg.end}`}
-                    </span>
-                  ))
-                )}
+          ) : (
+            /* 单文件夹 / 详细分析视图底栏 */
+            <div className="info-bar" id="div-info-bar">
+              <div className="info-summary">
+                <div>
+                  <strong>{detectedCount}</strong>
+                  <span>已识别</span>
+                </div>
+                <div>
+                  <strong>{continuousSegments.length}</strong>
+                  <span>连续区间</span>
+                </div>
+                <div className={missingCount > 0 ? "has-missing" : ""}>
+                  <strong>{missingCount}</strong>
+                  <span>缺少序号</span>
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* 重命名按钮 */}
-          <button
-            className={`btn-rename-giant ${renamePhase}`}
-            onClick={renamePhase === "completed" ? returnToStart : handleRename}
-            disabled={
-              renamePhase === "running" || (renamePhase === "idle" && renameableCount === 0)
-            }
-            id="btn-rename-execute"
-          >
-            <span className="rename-title">
-              {renamePhase === "running"
-                ? "正在重命名"
-                : renamePhase === "completed"
-                  ? "回到开始"
-                  : "重命名"}
-            </span>
-            <span className="rename-count">
-              {renamePhase === "idle"
-                ? `${renameableCount} 个文件`
-                : renamePhase === "running"
-                  ? `${renameResults.length} / ${renameTotal}`
-                  : "开始一个新任务"}
-            </span>
-          </button>
+              <div className="info-row">
+                <span className="info-label">连续序号</span>
+                <div className="pills-container">
+                  {continuousSegments.length === 0 ? (
+                    <span className="info-empty">无</span>
+                  ) : (
+                    continuousSegments.map((seg, i) => (
+                      <span
+                        key={i}
+                        className="pill pill-success"
+                        onClick={() => scrollToSegment(seg.start, false)}
+                        id={`pill-cont-${seg.start}`}
+                      >
+                        {seg.start === seg.end ? `${seg.start}` : `${seg.start} - ${seg.end}`}
+                      </span>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="info-row">
+                <span className="info-label">缺省序号</span>
+                <div className="pills-container">
+                  {missingSegments.length === 0 ? (
+                    <span className="info-empty info-success">序号完整</span>
+                  ) : (
+                    missingSegments.map((seg, i) => (
+                      <span
+                        key={i}
+                        className="pill pill-danger"
+                        onClick={() => scrollToSegment(seg.start, true)}
+                        id={`pill-miss-${seg.start}`}
+                      >
+                        {seg.start === seg.end ? `${seg.start}` : `${seg.start} - ${seg.end}`}
+                      </span>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 重命名执行按钮 */}
+          {viewMode === "batch-list" ? (
+            <button
+              className={`btn-rename-giant ${renamePhase}`}
+              onClick={renamePhase === "completed" ? returnToStart : handleBatchRenameAll}
+              disabled={
+                renamePhase === "running" || (renamePhase === "idle" && batchRenameableTotal === 0)
+              }
+              id="btn-batch-rename-execute"
+            >
+              <span className="rename-title">
+                {renamePhase === "running"
+                  ? "正在批量重命名"
+                  : renamePhase === "completed"
+                    ? "回到开始"
+                    : "重命名全部"}
+              </span>
+              <span className="rename-count">
+                {renamePhase === "idle"
+                  ? `${batchRenameableTotal} 个文件`
+                  : renamePhase === "running"
+                    ? `${renameResults.length} / ${renameTotal}`
+                    : "开始一个新任务"}
+              </span>
+            </button>
+          ) : (
+            <button
+              className={`btn-rename-giant ${renamePhase}`}
+              onClick={renamePhase === "completed" ? returnToStart : handleRename}
+              disabled={
+                renamePhase === "running" || (renamePhase === "idle" && renameableCount === 0)
+              }
+              id="btn-rename-execute"
+            >
+              <span className="rename-title">
+                {renamePhase === "running"
+                  ? "正在重命名"
+                  : renamePhase === "completed"
+                    ? "回到开始"
+                    : "重命名"}
+              </span>
+              <span className="rename-count">
+                {renamePhase === "idle"
+                  ? `${renameableCount} 个文件`
+                  : renamePhase === "running"
+                    ? `${renameResults.length} / ${renameTotal}`
+                    : "开始一个新任务"}
+              </span>
+            </button>
+          )}
         </footer>
       )}
     </main>
