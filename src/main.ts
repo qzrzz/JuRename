@@ -1,7 +1,13 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import chalk from 'chalk';
+
+type TestSample = [number | null, string];
+type ExportTestSamplesRequest = {
+  samples: TestSample[];
+  fileName: string;
+};
 
 const createWindow = () => {
   // Create the browser window.
@@ -177,6 +183,61 @@ function registerIpcHandlers() {
       return { success: true };
     } catch (err: any) {
       console.error(chalk.red(`[Error] 重命名失败: ${item.oldPath} -> ${item.newPath}`), err);
+      return { success: false, error: err.message || String(err) };
+    }
+  });
+
+  ipcMain.handle('show-item-in-folder', async (_event, itemPath: string) => {
+    if (typeof itemPath !== 'string' || itemPath.length === 0) {
+      return { success: false, error: '文件路径不正确' };
+    }
+
+    try {
+      shell.showItemInFolder(itemPath);
+      return { success: true };
+    } catch (err: any) {
+      console.error(chalk.red(`[Error] 打开文件位置失败: ${itemPath}`), err);
+      return { success: false, error: err.message || String(err) };
+    }
+  });
+
+  ipcMain.handle('export-test-samples', async (_event, request: ExportTestSamplesRequest) => {
+    const samples = request?.samples;
+    const fileName = request?.fileName;
+    if (
+      !Array.isArray(samples) ||
+      typeof fileName !== 'string' ||
+      !samples.every((sample) =>
+        Array.isArray(sample) &&
+        sample.length === 2 &&
+        (sample[0] === null || (typeof sample[0] === 'number' && Number.isFinite(sample[0]))) &&
+        typeof sample[1] === 'string'
+      )
+    ) {
+      return { success: false, error: '测试样例格式不正确' };
+    }
+
+    try {
+      const safeFileName = path.basename(fileName)
+        .replace(/[\s<>:"/\\|?*\u0000-\u001F]/g, '')
+        .trim();
+      const jsonFileName = safeFileName.toLowerCase().endsWith('.json')
+        ? safeFileName
+        : `${safeFileName || 'jurename-test-samples'}.json`;
+      const result = await dialog.showSaveDialog({
+        title: '导出测试样例',
+        defaultPath: path.join(app.getPath('documents'), jsonFileName),
+        filters: [{ name: 'JSON 文件', extensions: ['json'] }],
+      });
+
+      if (result.canceled || !result.filePath) {
+        return { success: false, canceled: true };
+      }
+
+      await fs.writeFile(result.filePath, `${JSON.stringify(samples, null, 2)}\n`, 'utf8');
+      return { success: true, filePath: result.filePath };
+    } catch (err: any) {
+      console.error(chalk.red('[Error] 导出测试样例失败:'), err);
       return { success: false, error: err.message || String(err) };
     }
   });
