@@ -14,6 +14,13 @@ interface IElectronAPI {
   scanPaths: (paths: string[]) => Promise<string[]>;
   getFilePath: (file: File) => string;
   renameFile: (rename: { oldPath: string; newPath: string }) => Promise<{ success: boolean; error?: string }>;
+  showItemInFolder: (itemPath: string) => Promise<{ success: boolean; error?: string }>;
+  exportTestSamples: (samples: Array<[number | null, string]>, fileName: string) => Promise<{
+    success: boolean;
+    canceled?: boolean;
+    filePath?: string;
+    error?: string;
+  }>;
 }
 
 declare global {

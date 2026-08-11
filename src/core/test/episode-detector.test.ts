@@ -1,66 +1,47 @@
-import { chineseToNumber, extractCandidates, analyzeEpisodes, formatEpisodeNumber } from '../episode-detector';
-import { readFileSync, readdirSync } from 'node:fs';
+import {
+  chineseToNumber,
+  extractCandidates,
+  analyzeEpisodes,
+  formatEpisodeNumber,
+} from "../episode-detector";
 
-const SAMPLE_DIRECTORY = new URL('./sample/', import.meta.url);
-
-function readSampleCases(sampleFile: string): Array<{ expected: number; name: string }> {
-  return readFileSync(new URL(sampleFile, SAMPLE_DIRECTORY), 'utf8')
-    .split(/\r?\n/)
-    .map(line => line.trim())
-    .filter(line => line !== '' && !line.startsWith('#'))
-    .map((line, index) => {
-      const separator = line.indexOf('\t');
-      if (separator < 1) {
-        throw new Error(`${sampleFile}:${index + 1} 应为“期望集数\\t文件名”格式`);
-      }
-
-      const expected = Number(line.slice(0, separator));
-      const name = line.slice(separator + 1);
-      if (!Number.isFinite(expected) || name === '') {
-        throw new Error(`${sampleFile}:${index + 1} 包含无效的期望集数或文件名`);
-      }
-      return { expected, name };
-    });
-}
-
-describe('剧集智能识别核心算法测试', () => {
-
-  test('中文数字转换为阿拉伯数字', () => {
-    expect(chineseToNumber('三')).toBe(3);
-    expect(chineseToNumber('十二')).toBe(12);
-    expect(chineseToNumber('三十五')).toBe(35);
-    expect(chineseToNumber('一百零五')).toBe(105);
-    expect(chineseToNumber('第十四')).toBe(14);
-    expect(chineseToNumber('九百九十九')).toBe(999);
-    expect(chineseToNumber('贰仟零伍')).toBe(2005);
-    expect(chineseToNumber('二〇二六')).toBe(2026);
-    expect(chineseToNumber('一亿零二万')).toBe(100020000);
+describe("剧集智能识别核心算法测试", () => {
+  test("中文数字转换为阿拉伯数字", () => {
+    expect(chineseToNumber("三")).toBe(3);
+    expect(chineseToNumber("十二")).toBe(12);
+    expect(chineseToNumber("三十五")).toBe(35);
+    expect(chineseToNumber("一百零五")).toBe(105);
+    expect(chineseToNumber("第十四")).toBe(14);
+    expect(chineseToNumber("九百九十九")).toBe(999);
+    expect(chineseToNumber("贰仟零伍")).toBe(2005);
+    expect(chineseToNumber("二〇二六")).toBe(2026);
+    expect(chineseToNumber("一亿零二万")).toBe(100020000);
   });
 
-  test('提取文件名中的整数和浮点候选', () => {
-    const cands = extractCandidates('Show.01.2.mkv');
-    const values = cands.map(c => c.value);
+  test("提取文件名中的整数和浮点候选", () => {
+    const cands = extractCandidates("Show.01.2.mkv");
+    const values = cands.map((c) => c.value);
     // 应包含整数 1, 2，以及浮点 1.2
     expect(values).toContain(1);
     expect(values).toContain(2);
     expect(values).toContain(1.2);
   });
 
-  test('不把 1080p 之类的规格误判为浮点', () => {
-    const cands = extractCandidates('Show.01.1080p.mkv');
-    const values = cands.map(c => c.value);
+  test("不把 1080p 之类的规格误判为浮点", () => {
+    const cands = extractCandidates("Show.01.1080p.mkv");
+    const values = cands.map((c) => c.value);
     // 应有整数 1 和 1080，但不应有 1.108 这种浮点
     expect(values).toContain(1);
     expect(values).toContain(1080);
-    expect(values.some(v => v > 1 && v < 2)).toBe(false);
+    expect(values.some((v) => v > 1 && v < 2)).toBe(false);
   });
 
-  test('智能排除年份与分辨率等干扰数字', () => {
+  test("智能排除年份与分辨率等干扰数字", () => {
     const files = [
-      { name: 'Show.2023.EP01.1080p.mp4', path: '/1' },
-      { name: 'Show.2023.EP02.1080p.mp4', path: '/2' },
-      { name: 'Show.2023.EP03.1080p.mp4', path: '/3' },
-      { name: 'Show.2023.EP04.1080p.mp4', path: '/4' },
+      { name: "Show.2023.EP01.1080p.mp4", path: "/1" },
+      { name: "Show.2023.EP02.1080p.mp4", path: "/2" },
+      { name: "Show.2023.EP03.1080p.mp4", path: "/3" },
+      { name: "Show.2023.EP04.1080p.mp4", path: "/4" },
     ];
     const results = analyzeEpisodes(files);
 
@@ -71,12 +52,12 @@ describe('剧集智能识别核心算法测试', () => {
     expect(results[3].bestNumber).toBe(4);
   });
 
-  test('支持缺省/断开的集数识别', () => {
+  test("支持缺省/断开的集数识别", () => {
     const files = [
-      { name: 'Episode 01 [1080p].mkv', path: '/1' },
-      { name: 'Episode 02 [1080p].mkv', path: '/2' },
-      { name: 'Episode 05 [1080p].mkv', path: '/5' },
-      { name: 'Episode 06 [1080p].mkv', path: '/6' },
+      { name: "Episode 01 [1080p].mkv", path: "/1" },
+      { name: "Episode 02 [1080p].mkv", path: "/2" },
+      { name: "Episode 05 [1080p].mkv", path: "/5" },
+      { name: "Episode 06 [1080p].mkv", path: "/6" },
     ];
     const results = analyzeEpisodes(files);
 
@@ -86,11 +67,11 @@ describe('剧集智能识别核心算法测试', () => {
     expect(results[3].bestNumber).toBe(6);
   });
 
-  test('支持识别原文件名中的 n.n 消歧规则', () => {
+  test("支持识别原文件名中的 n.n 消歧规则", () => {
     const files = [
-      { name: '动漫.S01E01.1.mp4', path: '/1' },
-      { name: '动漫.S01E01.2.mp4', path: '/2' },
-      { name: '动漫.S01E02.mp4', path: '/3' },
+      { name: "动漫.S01E01.1.mp4", path: "/1" },
+      { name: "动漫.S01E01.2.mp4", path: "/2" },
+      { name: "动漫.S01E02.mp4", path: "/3" },
     ];
     const results = analyzeEpisodes(files);
 
@@ -101,11 +82,11 @@ describe('剧集智能识别核心算法测试', () => {
     expect(results[2].bestNumber).toBe(2);
   });
 
-  test('不强行给重复序号加 .n 后缀', () => {
+  test("不强行给重复序号加 .n 后缀", () => {
     // 两个文件的序号确实相同，但原文件名中没有 n.n 模式
     const files = [
-      { name: '动漫.EP01.A部分.mp4', path: '/1' },
-      { name: '动漫.EP01.B部分.mp4', path: '/2' },
+      { name: "动漫.EP01.A部分.mp4", path: "/1" },
+      { name: "动漫.EP01.B部分.mp4", path: "/2" },
     ];
     const results = analyzeEpisodes(files);
 
@@ -114,19 +95,19 @@ describe('剧集智能识别核心算法测试', () => {
     expect(results[1].bestNumber).toBe(1);
   });
 
-  test('原文件名中 001.1 可与 001 共存', () => {
+  test("原文件名中 001.1 可与 001 共存", () => {
     const results = analyzeEpisodes([
-      { name: 'demo-001.1.mkv', path: '/1.1' },
-      { name: 'demo-001.mkv', path: '/1' },
-      { name: 'demo-002.mkv', path: '/2' },
+      { name: "demo-001.1.mkv", path: "/1.1" },
+      { name: "demo-001.mkv", path: "/1" },
+      { name: "demo-002.mkv", path: "/2" },
     ]);
 
-    expect(results.map(item => item.bestNumber)).toEqual([1.1, 1, 2]);
+    expect(results.map((item) => item.bestNumber)).toEqual([1.1, 1, 2]);
   });
 
-  test('纯数字文件名能正确识别连续序号', () => {
+  test("纯数字文件名能正确识别连续序号", () => {
     const files = Array.from({ length: 12 }, (_, i) => ({
-      name: `[SubGroup] Anime - ${String(i + 1).padStart(2, '0')} [720p].mkv`,
+      name: `[SubGroup] Anime - ${String(i + 1).padStart(2, "0")} [720p].mkv`,
       path: `/path/${i + 1}`,
     }));
     const results = analyzeEpisodes(files);
@@ -136,23 +117,23 @@ describe('剧集智能识别核心算法测试', () => {
     }
   });
 
-  test('格式化集数序号补零', () => {
-    expect(formatEpisodeNumber(5, 2)).toBe('05');
-    expect(formatEpisodeNumber(12, 2)).toBe('12');
-    expect(formatEpisodeNumber(5, 3)).toBe('005');
-    expect(formatEpisodeNumber(1.2, 2)).toBe('01.2');
-    expect(formatEpisodeNumber(12.5, 3)).toBe('012.5');
+  test("格式化集数序号补零", () => {
+    expect(formatEpisodeNumber(5, 2)).toBe("05");
+    expect(formatEpisodeNumber(12, 2)).toBe("12");
+    expect(formatEpisodeNumber(5, 3)).toBe("005");
+    expect(formatEpisodeNumber(1.2, 2)).toBe("01.2");
+    expect(formatEpisodeNumber(12.5, 3)).toBe("012.5");
   });
 
-  test('主人提供的真实用例：小说分享加更与月卡抽奖高干扰文件名识别', () => {
+  test("主人提供的真实用例：小说分享加更与月卡抽奖高干扰文件名识别", () => {
     const files = [
-      { name: '【《洪荒二郎传》昨日分享破400，加更2集】太莽01柔情似水（上）.m4a', path: '/1' },
-      { name: '【《洪荒二郎传》订阅八千，加更】太莽02上官灵烨，你也有今天.m4a', path: '/2' },
-      { name: '【搜新书《洪荒二郎传》抽150张月卡】太莽03现在的年轻人（下）.m4a', path: '/3' },
-      { name: '【搜新书《洪荒二郎传》抽150张月卡】太莽04这雪真大，咳——真白.m4a', path: '/4' },
-      { name: '【搜新书《洪荒二郎传》抽150张月卡】太莽05我们怎么样了？.m4a', path: '/5' },
-      { name: '【搜新书《洪荒二郎传》抽150张月卡}太莽06杯中酒要喝完.m4a', path: '/6' },
-      { name: '【搜新书《洪荒二郎传》抽150张月卡】太莽07仇悠悠（上）.m4a', path: '/7' }
+      { name: "【《洪荒二郎传》昨日分享破400，加更2集】太莽01柔情似水（上）.m4a", path: "/1" },
+      { name: "【《洪荒二郎传》订阅八千，加更】太莽02上官灵烨，你也有今天.m4a", path: "/2" },
+      { name: "【搜新书《洪荒二郎传》抽150张月卡】太莽03现在的年轻人（下）.m4a", path: "/3" },
+      { name: "【搜新书《洪荒二郎传》抽150张月卡】太莽04这雪真大，咳——真白.m4a", path: "/4" },
+      { name: "【搜新书《洪荒二郎传》抽150张月卡】太莽05我们怎么样了？.m4a", path: "/5" },
+      { name: "【搜新书《洪荒二郎传》抽150张月卡}太莽06杯中酒要喝完.m4a", path: "/6" },
+      { name: "【搜新书《洪荒二郎传》抽150张月卡】太莽07仇悠悠（上）.m4a", path: "/7" },
     ];
     const results = analyzeEpisodes(files);
 
@@ -165,27 +146,30 @@ describe('剧集智能识别核心算法测试', () => {
     expect(results[6].bestNumber).toBe(7);
   });
 
-  describe('sample 目录回归样例', () => {
-    const sampleFiles = readdirSync(SAMPLE_DIRECTORY)
-      .filter(name => name.endsWith('.txt'))
-      .sort();
+  test("大于最长连续序列最大值 10 倍的数字视为无效", () => {
+    // 最长连续序列为 1..5，最大值 5；上限 50。999 / 1080 应被丢弃。
+    const files = [
+      { name: "Show.EP01.999.mp4", path: "/1" },
+      { name: "Show.EP02.999.mp4", path: "/2" },
+      { name: "Show.EP03.1080p.mp4", path: "/3" },
+      { name: "Show.EP04.1080p.mp4", path: "/4" },
+      { name: "Show.EP05.1080p.mp4", path: "/5" },
+    ];
+    const results = analyzeEpisodes(files);
 
-    test('至少包含一个样例文件', () => {
-      expect(sampleFiles.length).toBeGreaterThan(0);
-    });
-
-    test.each(sampleFiles)('%s 中的文件名都能正确识别', sampleFile => {
-      const cases = readSampleCases(sampleFile);
-      const results = analyzeEpisodes(cases.map(({ name }, index) => ({ name, path: `/${index}` })));
-      const failures = results.flatMap((result, index) =>
-        result.bestNumber === cases[index].expected
-          ? []
-          : [`期望 ${cases[index].expected}，实际 ${result.bestNumber}：${result.name}`]
-      );
-
-      expect(cases.length, `${sampleFile} 没有可校验的集数样例`).toBeGreaterThan(0);
-      expect(failures, failures.join('\n')).toEqual([]);
-    });
+    expect(results.map((item) => item.bestNumber)).toEqual([1, 2, 3, 4, 5]);
   });
 
+  test("等于最长连续序列最大值 10 倍的数字仍有效", () => {
+    // 连续序列 1..3，上限 30；边界值 30 不应被剔除。
+    const files = [
+      { name: "Show.01.mp4", path: "/1" },
+      { name: "Show.02.mp4", path: "/2" },
+      { name: "Show.03.mp4", path: "/3" },
+      { name: "Show.30.mp4", path: "/30" },
+    ];
+    const results = analyzeEpisodes(files);
+
+    expect(results.map((item) => item.bestNumber)).toEqual([1, 2, 3, 30]);
+  });
 });

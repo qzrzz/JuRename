@@ -9,5 +9,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   inspectDirectory: (dirPath: string) => ipcRenderer.invoke('inspect-directory', dirPath),
   scanPaths: (paths: string[]) => ipcRenderer.invoke('scan-paths', paths),
   getFilePath: (file: File) => webUtils.getPathForFile(file),
-  renameFile: (rename: { oldPath: string, newPath: string }) => ipcRenderer.invoke('rename-file', rename)
+  renameFile: (rename: { oldPath: string, newPath: string }) => ipcRenderer.invoke('rename-file', rename),
+  showItemInFolder: (itemPath: string) => ipcRenderer.invoke('show-item-in-folder', itemPath),
+  exportTestSamples: (samples: Array<[number | null, string]>, fileName: string) =>
+    ipcRenderer.invoke('export-test-samples', { samples, fileName }),
 });

@@ -1,6 +1,7 @@
 /// <reference path="../renderer.d.ts" />
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { analyzeEpisodes, formatEpisodeNumber, FileItem } from "../core/episode-detector";
+import { buildTestSamples, buildTestSamplesFileName } from "../core/test-samples";
 import {
   isBatchDirectory,
   analyzeBatchFolder,
@@ -78,6 +79,8 @@ type MixListItem =
   | { isMissingPlaceholder: false; file: BatchFolderDisplayFile }
   | { isMissingPlaceholder: true; start: number; end: number; length: number };
 
+type ContextMenuPosition = { x: number; y: number } | null;
+
 type RenamePhase = "idle" | "running" | "completed";
 
 interface RenameResultItem {
@@ -122,9 +125,13 @@ export const App: React.FC = () => {
   const [renameResults, setRenameResults] = useState<RenameResultItem[]>([]);
   const [currentRenameName, setCurrentRenameName] = useState("");
   const [separatorMenuOpen, setSeparatorMenuOpen] = useState(false);
+  const [contextMenuPosition, setContextMenuPosition] = useState<ContextMenuPosition>(null);
+  const [contextMenuTargetPath, setContextMenuTargetPath] = useState<string | null>(null);
+  const [currentFolderName, setCurrentFolderName] = useState<string | null>(null);
 
   const scrollToIndexRef = useRef<((index: number) => void) | null>(null);
   const separatorControlRef = useRef<HTMLDivElement>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
 
   // 计算当前查看文件的补零宽度，最小 2 位
   const paddingWidth = useMemo(() => {
@@ -146,12 +153,24 @@ export const App: React.FC = () => {
       }
     };
     const closeSeparatorMenuWithKeyboard = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSeparatorMenuOpen(false);
+      if (event.key === "Escape") {
+        setSeparatorMenuOpen(false);
+        setContextMenuPosition(null);
+        setContextMenuTargetPath(null);
+      }
+    };
+    const closeContextMenu = (event: MouseEvent) => {
+      if (!contextMenuRef.current?.contains(event.target as Node)) {
+        setContextMenuPosition(null);
+        setContextMenuTargetPath(null);
+      }
     };
     document.addEventListener("mousedown", closeSeparatorMenu);
+    document.addEventListener("mousedown", closeContextMenu);
     document.addEventListener("keydown", closeSeparatorMenuWithKeyboard);
     return () => {
       document.removeEventListener("mousedown", closeSeparatorMenu);
+      document.removeEventListener("mousedown", closeContextMenu);
       document.removeEventListener("keydown", closeSeparatorMenuWithKeyboard);
     };
   }, []);
@@ -162,6 +181,11 @@ export const App: React.FC = () => {
     const dir = fullPath.substring(0, lastSlash + 1);
     const name = fullPath.substring(lastSlash + 1);
     return { dir, name };
+  };
+
+  const getLastPathComponent = (fullPath: string) => {
+    const trimmedPath = fullPath.replace(/[\\/]+$/, "");
+    return splitPath(trimmedPath).name;
   };
 
   // 重新对文件集合进行智能序号检测
@@ -207,6 +231,7 @@ export const App: React.FC = () => {
 
     try {
       // 1. 如果只传入了 1 个路径且是文件夹，先检查直属一层项
+      let singleFolderName: string | undefined;
       if (paths.length === 1) {
         const inspect = await window.electronAPI.inspectDirectory(paths[0]);
         if (inspect) {
@@ -216,6 +241,7 @@ export const App: React.FC = () => {
             await loadBatchFolders(subDirs);
             return;
           }
+          singleFolderName = getLastPathComponent(paths[0]);
         }
       } else if (paths.length > 1) {
         // 如果同时拖入了多个路径，检查其中是否主要是文件夹，若全为/多数为文件夹则走批量
@@ -232,7 +258,7 @@ export const App: React.FC = () => {
       setViewMode("single");
       setBatchFolders([]);
       setActiveBatchFolderId(null);
-      await openPathsAsSingleTask(paths);
+      await openPathsAsSingleTask(paths, singleFolderName);
     } catch (err) {
       console.error("处理选择路径出错:", err);
       // 降级为单文件夹尝试
@@ -260,6 +286,7 @@ export const App: React.FC = () => {
 
     setBatchFolders(results);
     setActiveBatchFolderId(null);
+    setCurrentFolderName(null);
     setViewMode("batch-list");
     setFiles([]);
     setKeyword("");
@@ -272,7 +299,7 @@ export const App: React.FC = () => {
   };
 
   // 作为传统单任务打开
-  const openPathsAsSingleTask = async (paths: string[]) => {
+  const openPathsAsSingleTask = async (paths: string[], folderName?: string) => {
     const expandedPaths = await window.electronAPI.scanPaths(paths);
     const newBaseFiles = expandedPaths.map((p: string) => {
       const { name } = splitPath(p);
@@ -282,6 +309,8 @@ export const App: React.FC = () => {
     newBaseFiles.forEach((file) => uniqueMap.set(file.path, file));
 
     setFiles(reAnalyzeFiles(Array.from(uniqueMap.values())));
+    const detectedFolderName = folderName || getLastPathComponent(splitPath(expandedPaths[0] || "").dir);
+    setCurrentFolderName(detectedFolderName || null);
     setKeyword("");
     setSearchResults([]);
     setCurrentSearchIndex(-1);
@@ -307,6 +336,7 @@ export const App: React.FC = () => {
   // 进入某个子文件夹的详细分析页面
   const enterBatchDetail = (folder: BatchFolderResult) => {
     setActiveBatchFolderId(folder.id);
+    setCurrentFolderName(folder.folderName);
     setFiles(folder.files);
     setViewMode("batch-detail");
     setKeyword("");
@@ -318,6 +348,7 @@ export const App: React.FC = () => {
   const backToBatchList = () => {
     setViewMode("batch-list");
     setActiveBatchFolderId(null);
+    setCurrentFolderName(null);
     setFiles([]);
   };
 
@@ -354,6 +385,7 @@ export const App: React.FC = () => {
     setFiles([]);
     setBatchFolders([]);
     setActiveBatchFolderId(null);
+    setCurrentFolderName(null);
     setViewMode("single");
     setKeyword("");
     setSearchResults([]);
@@ -367,6 +399,7 @@ export const App: React.FC = () => {
     setFiles([]);
     setBatchFolders([]);
     setActiveBatchFolderId(null);
+    setCurrentFolderName(null);
     setViewMode("single");
     setKeyword("");
     setSearchResults([]);
@@ -386,6 +419,51 @@ export const App: React.FC = () => {
       return a.bestNumber - b.bestNumber;
     });
   }, [files]);
+
+  const handleExportTestSamples = async () => {
+    setContextMenuPosition(null);
+    setContextMenuTargetPath(null);
+    if (files.length === 0) {
+      alert("当前没有可导出的识别列表。");
+      return;
+    }
+
+    const result = await window.electronAPI.exportTestSamples(
+      buildTestSamples(sortedFiles),
+      buildTestSamplesFileName(currentFolderName || ""),
+    );
+    if (!result.success && !result.canceled) {
+      alert(`导出测试样例失败：${result.error || "未知错误"}`);
+    }
+  };
+
+  const handleShowItemInFolder = async () => {
+    const itemPath = contextMenuTargetPath;
+    setContextMenuPosition(null);
+    setContextMenuTargetPath(null);
+    if (!itemPath) return;
+
+    const result = await window.electronAPI.showItemInFolder(itemPath);
+    if (!result.success) {
+      alert(`打开文件位置失败：${result.error || "未知错误"}`);
+    }
+  };
+
+  const handleListContextMenu = (event: React.MouseEvent<HTMLElement>) => {
+    if (files.length === 0) return;
+    event.preventDefault();
+    setSeparatorMenuOpen(false);
+    setContextMenuTargetPath(null);
+    setContextMenuPosition({ x: event.clientX, y: event.clientY });
+  };
+
+  const handleItemContextMenu = (event: React.MouseEvent<HTMLElement>, itemPath: string) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setSeparatorMenuOpen(false);
+    setContextMenuTargetPath(itemPath);
+    setContextMenuPosition({ x: event.clientX, y: event.clientY });
+  };
 
   // 生成包含缺失序号指示行的 mixList
   const mixList = useMemo(() => {
@@ -654,7 +732,11 @@ export const App: React.FC = () => {
     const formattedNum = formatEpisodeNumber(file.bestNumber, paddingWidth);
 
     return (
-      <div className="file-item" id={`item-${index}`}>
+      <div
+        className="file-item"
+        id={`item-${index}`}
+        onContextMenu={(event) => handleItemContextMenu(event, file.path)}
+      >
         <button
           className={`checkbox-custom ${file.checked ? "checked" : ""}`}
           onClick={() => toggleFileChecked(rawIndex)}
@@ -743,6 +825,42 @@ export const App: React.FC = () => {
             <div className="drag-overlay-text">松开即可开始识别</div>
             <div className="drag-overlay-subtext">支持单集文件夹与批量子文件夹拖入分析</div>
           </div>
+        </div>
+      )}
+
+      {contextMenuPosition && (
+        <div
+          ref={contextMenuRef}
+          className="context-menu"
+          role="menu"
+          style={{
+            left: Math.max(8, Math.min(contextMenuPosition.x, window.innerWidth - 198)),
+            top: Math.max(8, Math.min(contextMenuPosition.y, window.innerHeight - 54)),
+          }}
+          onContextMenu={(event) => event.preventDefault()}
+        >
+          {contextMenuTargetPath && (
+            <button
+              type="button"
+              className="context-menu-item"
+              role="menuitem"
+              onClick={() => void handleShowItemInFolder()}
+            >
+              <Icon name="folder" size={14} />
+              在文件管理器/访达中查看
+            </button>
+          )}
+          {!contextMenuTargetPath && (
+            <button
+              type="button"
+              className="context-menu-item"
+              role="menuitem"
+              onClick={() => void handleExportTestSamples()}
+            >
+              <Icon name="file" size={14} />
+              导出测试样例
+            </button>
+          )}
         </div>
       )}
 
@@ -906,7 +1024,10 @@ export const App: React.FC = () => {
       <div className="drag-bk"></div>
 
       {/* 主视图展示区域 */}
-      <section className={`list-container ${dragActive ? "drag-active" : ""}`}>
+      <section
+        className={`list-container ${dragActive ? "drag-active" : ""}`}
+        onContextMenu={handleListContextMenu}
+      >
         {files.length === 0 && batchFolders.length === 0 ? (
           /* 初始拖放 / 空面板 */
           <div className="dropzone" id="div-dropzone">
@@ -1065,6 +1186,7 @@ export const App: React.FC = () => {
                   key={folder.id}
                   className="batch-folder-card"
                   onClick={() => enterBatchDetail(folder)}
+                  onContextMenu={(event) => handleItemContextMenu(event, folder.folderPath)}
                 >
                   <div>
                     <div className="batch-folder-header">
