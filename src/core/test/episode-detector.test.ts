@@ -172,4 +172,59 @@ describe("剧集智能识别核心算法测试", () => {
 
     expect(results.map((item) => item.bestNumber)).toEqual([1, 2, 3, 30]);
   });
+
+  test("中文章节号优先于标题里的单字中文数字噪声", () => {
+    // 用一段连续中文章节号撑起有效上限，再混入标题噪声。
+    // 五百xx章 应压过“（二）”“前两天”“一票”；带 章/集 的单字（第一章）仍可用。
+    const continuous = [
+      "五百三十八",
+      "五百三十九",
+      "五百四十",
+      "五百四十一",
+      "五百四十二",
+      "五百四十三",
+      "五百四十四",
+      "五百四十五",
+      "五百四十六",
+      "五百四十七",
+      "五百四十八",
+      "五百四十九",
+      "五百五十",
+      "五百五十一",
+    ];
+    const files = [
+      { name: "赘婿第一章：苏家赘婿.m4a", path: "/1" },
+      { name: "赘婿第二章：诗与棋.m4a", path: "/2" },
+      { name: "赘婿第三章上：群像.m4a", path: "/3" },
+      ...continuous.map((chapter, index) => ({
+        name: `赘婿${chapter}章：正文.m4a`,
+        path: `/${538 + index}`,
+      })),
+      {
+        name: "赘婿五百三十九章：战地情天 只如初见（前两天过生日，大家久等了）.m4a",
+        path: "/539-noise",
+      },
+      {
+        name: "赘婿五百四十五章：宗师之会 吕梁巅峰（二）.m4a",
+        path: "/545-noise",
+      },
+      {
+        name: "赘婿五百五十一章：作战名（主播评选活动，麻烦大家帮忙投一票）.m4a",
+        path: "/551-noise",
+      },
+      { name: "赘婿八百五十集：秋风萧瑟 洪波涌起（一）.m4a", path: "/850" },
+    ];
+    const results = analyzeEpisodes(files);
+
+    expect(results[0].bestNumber).toBe(1);
+    expect(results[1].bestNumber).toBe(2);
+    expect(results[2].bestNumber).toBe(3);
+    expect(results.slice(3, 17).map((item) => item.bestNumber)).toEqual([
+      538, 539, 540, 541, 542, 543, 544, 545, 546, 547, 548, 549, 550, 551,
+    ]);
+    expect(results[17].bestNumber).toBe(539);
+    expect(results[18].bestNumber).toBe(545);
+    expect(results[19].bestNumber).toBe(551);
+    expect(results[20].bestNumber).toBe(850);
+  });
 });
