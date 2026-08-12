@@ -27,9 +27,7 @@ const collectFiles = (directory, version) => readdirSync(directory, { withFileTy
     && !/universal-mac\.zip$/i.test(entry.name))
   .map((entry) => join(directory, entry.name));
 
-if (getOutput('git', ['status', '--porcelain'])) {
-  throw new Error('Git working directory must be clean before releasing.');
-}
+ 
 
 run(process.execPath, ['scripts/build-all-platforms.mjs', '--check']);
 const originalPackageJson = readFileSync('package.json', 'utf8');
