@@ -519,6 +519,17 @@ function scoreIntegerCandidate(
 
   // Prefer the earlier occurrence only after global evidence is exhausted.
   score -= candidate.index / Math.max(1, nameLength);
+
+  // Single-character Chinese numerals without 第…/…章/…集 are usually
+  // title noise (“前两天”, “（二）”, “一票”), not episode markers.
+  if (
+    style === 'chinese' &&
+    unit === undefined &&
+    [...candidate.raw].length === 1
+  ) {
+    score -= MAX_CONTINUITY_SCORE_LENGTH * 2_000;
+  }
+
   return score;
 }
 
