@@ -49,10 +49,10 @@ bun run start
 | `bun run check` | 运行 TypeScript 检查和单元测试 |
 | `bun run test` | 只运行单元测试 |
 | `bun run build` | 构建 Electron 的主进程、preload 和渲染进程 |
-| `bun run website:dev` | 启动官网开发服务器 |
-| `bun run website:build` | 构建官网到 `docs/` |
+| `bun run web:dev` | 启动官网开发服务器 |
+| `bun run web:build` | 构建官网到 `docs/` |
 | `bun run dist` | 构建 macOS、Windows 和 Linux 发行包 |
-| `bun run release` | 递增版本并发布新的 GitHub Release |
+| `bun run release` | 递增版本，并用 QRls 发布到 R2 与 GitHub |
 
 主进程、preload 和各平台打包步骤由 `scripts/` 中的内部脚本处理，不再暴露为 npm scripts。
 
@@ -89,7 +89,7 @@ bun run test
 | --- | --- | --- |
 | `bun run build` | 编译 Electron 的主进程、preload 和渲染进程 | 生成 `dist-electron/`，用于检查构建或供后续打包使用，不能直接作为安装包发布 |
 | `bun run dist` | 执行 `build`，然后打包 macOS、Windows 和 Linux 版本 | 在 `release/` 中生成 DMG、ZIP、AppImage 等发行文件，并完成 macOS 签名与公证 |
-| `bun run release` | 执行完整的新版本发布流程 | 更新版本、构建官网、执行 `dist`、提交 Git、创建并推送 tag，最后创建 GitHub Release |
+| `bun run release` | 执行完整的新版本发布流程 | 更新版本、构建官网、执行 `dist`、提交 Git、创建并推送 tag，最后用 QRls 上传到 R2 和 GitHub |
 
 三者是逐层包含的关系：
 
@@ -99,7 +99,9 @@ release
 ├── dist
 │   └── build
 ├── Git commit、tag 和 push
-└── GitHub Release
+└── QRls
+    ├── Cloudflare R2（主下载源）
+    └── GitHub Release（镜像）
 ```
 
 日常开发验证使用 `build`，需要本地安装包时使用 `dist`，只有正式发布新版本时才使用 `release`。
@@ -107,6 +109,12 @@ release
 `dist` 会在本机完成 macOS 签名与公证，并通过 Docker 构建 Windows 和 Linux 包。Docker 需要至少分配 5 GiB 内存，所有产物输出到 `release/`。
 
 打包支持断点续跑：重新执行 `dist` 或失败后的 `release` 时，当前版本已经生成的各平台产物会被跳过，只构建缺失的平台。旧版本产物不会被当作当前版本，也不会上传到新的 GitHub Release。
+
+QRls 会把各平台安装包发到 R2 和 GitHub，并生成 `https://download.qzrzz.com/JuRename/download.json`。官网通过 `page.downloadBase` 读取这份清单。R2 / GitHub 凭据从 `~/.config/qrls/qrls.config.json` 或环境变量读取；GitHub Token 也可由已登录的 `gh` 自动提供。分发失败后可只重试上传：
+
+```bash
+bun run release -- --publish-only
+```
 
 在 `.env` 中配置 macOS 签名与公证信息：
 
@@ -117,13 +125,13 @@ APPLE_APP_SPECIFIC_PASSWORD='xxxx-xxxx-xxxx-xxxx'
 APPLE_TEAM_ID='TEAMID'
 ```
 
-发布前还需要安装并登录 [GitHub CLI](https://cli.github.com/)：
+发布前还需要安装并登录 [GitHub CLI](https://cli.github.com/)（QRls 会从 `gh` 读取 Token）：
 
 ```bash
 gh auth login
 ```
 
-发布脚本要求 Git 工作区干净。它会更新版本、构建官网和三平台安装包、提交、创建并推送 Git tag，最后创建 GitHub Release：
+发布脚本要求 Git 工作区干净。它会更新版本、构建官网和三平台安装包、提交、创建并推送 Git tag，最后用 QRls 上传到 R2 和 GitHub：
 
 ```bash
 bun run release           # patch，例如 1.0.0 → 1.0.1
