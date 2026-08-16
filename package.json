@@ -22,7 +22,7 @@
     "web:i18n:codex": "codex exec 根据./web/translate.md完成翻译任务",
     "web:i18n:gemini": "agy -p 根据./web/translate.md完成翻译任务",
     "dist": "node scripts/build-all-platforms.mjs",
-    "release": "node scripts/release.mjs",
+    "release": "bun scripts/release.ts",
     "release:deno-desktop": "node scripts/release-deno-desktop.mjs"
   },
   "dependencies": {
@@ -38,6 +38,7 @@
     "electron": "43.1.0",
     "electron-builder": "26.15.3",
     "qpage": "link:qpage",
+    "qrls": "link:qrls",
     "typescript": "7.0.2",
     "vite": "8.1.4",
     "vitest": "4.1.10"

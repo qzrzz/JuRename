@@ -17,6 +17,7 @@
         "electron": "43.1.0",
         "electron-builder": "26.15.3",
         "qpage": "link:qpage",
+        "qrls": "link:qrls",
         "typescript": "7.0.2",
         "vite": "8.1.4",
         "vitest": "4.1.10",
@@ -619,6 +620,8 @@
     "pvutils": ["pvutils@1.1.5", "https://registry.npmmirror.com/pvutils/-/pvutils-1.1.5.tgz", {}, "sha512-KTqnxsgGiQ6ZAzZCVlJH5eOjSnvlyEgx1m8bkRJfOhmGRqfo5KLvmAlACQkrjEtOQ4B7wF9TdSLIs9O90MX9xA=="],
 
     "qpage": ["qpage@link:qpage", { "bin": { "qpage": "./dist/cli.js" } }],
+
+    "qrls": ["qrls@link:qrls", {}],
 
     "quick-lru": ["quick-lru@5.1.1", "https://registry.npmmirror.com/quick-lru/-/quick-lru-5.1.1.tgz", {}, "sha512-WuyALRjWPDGtt/wzJiadO5AXY+8hZ80hVpe6MyivgraREW751X3SbhRvG3eLKOYN+8VEvqLcf3wdnt44Z4S4SA=="],
 
