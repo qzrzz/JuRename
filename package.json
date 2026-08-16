@@ -1,6 +1,6 @@
 {
   "name": "jurename",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "private": true,
   "description": "智能识别连续序号的批量文件重命名工具",
   "keywords": [],
@@ -21,6 +21,8 @@
     "web:preview": "qpage --preview ./web ./docs",
     "web:i18n:codex": "codex exec 根据./web/translate.md完成翻译任务",
     "web:i18n:gemini": "agy -p 根据./web/translate.md完成翻译任务",
+    "web:publish": "bun run qzrzz-com up ./docs ./JuRename",
+    "web:build-publish": "bun run bun web:build && bun run web:publish",
     "dist": "node scripts/build-all-platforms.mjs",
     "release": "bun scripts/release.ts",
     "release:deno-desktop": "node scripts/release-deno-desktop.mjs"
@@ -39,6 +41,7 @@
     "electron-builder": "26.15.3",
     "qpage": "link:qpage",
     "qrls": "link:qrls",
+    "qzrzz-com": "link:qzrzz-com",
     "typescript": "7.0.2",
     "vite": "8.1.4",
     "vitest": "4.1.10"
