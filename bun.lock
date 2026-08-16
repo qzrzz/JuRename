@@ -5,6 +5,7 @@
     "": {
       "name": "jurename",
       "dependencies": {
+        "@fontsource/timmana": "5.3.0",
         "chalk": "5.6.2",
         "react": "19.2.7",
         "react-dom": "19.2.7",
@@ -15,6 +16,7 @@
         "@vitejs/plugin-react": "6.0.3",
         "electron": "43.1.0",
         "electron-builder": "26.15.3",
+        "qpage": "link:qpage",
         "typescript": "7.0.2",
         "vite": "8.1.4",
         "vitest": "4.1.10",
@@ -91,6 +93,8 @@
     "@esbuild/win32-ia32": ["@esbuild/win32-ia32@0.21.5", "https://registry.npmmirror.com/@esbuild/win32-ia32/-/win32-ia32-0.21.5.tgz", { "os": "win32", "cpu": "ia32" }, "sha512-SWXFF1CL2RVNMaVs+BBClwtfZSvDgtL//G/smwAc5oVK/UPu2Gu9tIaRgFmYFFKrmg3SyAjSrElf0TiJ1v8fYA=="],
 
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.21.5", "https://registry.npmmirror.com/@esbuild/win32-x64/-/win32-x64-0.21.5.tgz", { "os": "win32", "cpu": "x64" }, "sha512-tQd/1efJuzPC6rCFwEvLtci/xNFcTZknmXs98FYDfGE4wP9ClFV98nyKrzJKVPMhdDnjzLhdUyMX4PsQAPjwIw=="],
+
+    "@fontsource/timmana": ["@fontsource/timmana@5.3.0", "https://registry.npmmirror.com/@fontsource/timmana/-/timmana-5.3.0.tgz", {}, "sha512-3SLvw1H9HlKlcaTud8o8CUKnMshrEie/bUwUee1qrOrpppwmZSRiCuOFaJCYNdxa7qZdpZADGgRSaL4EtlwmSA=="],
 
     "@isaacs/fs-minipass": ["@isaacs/fs-minipass@4.0.1", "https://registry.npmmirror.com/@isaacs/fs-minipass/-/fs-minipass-4.0.1.tgz", { "dependencies": { "minipass": "^7.0.4" } }, "sha512-wgm9Ehl2jpeqP3zw/7mo3kRHFp5MEDhqAdwy1fTGkHAwnkGOVsgpvQhL8B5n1qlb01jV3n/bI0ZfZp5lWA1k4w=="],
 
@@ -613,6 +617,8 @@
     "pvtsutils": ["pvtsutils@1.3.6", "https://registry.npmmirror.com/pvtsutils/-/pvtsutils-1.3.6.tgz", { "dependencies": { "tslib": "^2.8.1" } }, "sha512-PLgQXQ6H2FWCaeRak8vvk1GW462lMxB5s3Jm673N82zI4vqtVUPuZdffdZbPDFRoU8kAhItWFtPCWiPpp4/EDg=="],
 
     "pvutils": ["pvutils@1.1.5", "https://registry.npmmirror.com/pvutils/-/pvutils-1.1.5.tgz", {}, "sha512-KTqnxsgGiQ6ZAzZCVlJH5eOjSnvlyEgx1m8bkRJfOhmGRqfo5KLvmAlACQkrjEtOQ4B7wF9TdSLIs9O90MX9xA=="],
+
+    "qpage": ["qpage@link:qpage", { "bin": { "qpage": "./dist/cli.js" } }],
 
     "quick-lru": ["quick-lru@5.1.1", "https://registry.npmmirror.com/quick-lru/-/quick-lru-5.1.1.tgz", {}, "sha512-WuyALRjWPDGtt/wzJiadO5AXY+8hZ80hVpe6MyivgraREW751X3SbhRvG3eLKOYN+8VEvqLcf3wdnt44Z4S4SA=="],
 
