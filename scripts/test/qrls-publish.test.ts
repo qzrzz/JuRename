@@ -7,6 +7,7 @@ import {
   buildQrlsOptions,
   buildReleaseNotes,
   collectReleaseVariants,
+  existingReleaseArtifacts,
   r2PublicUrl,
 } from "../qrls-publish";
 
@@ -37,6 +38,18 @@ describe("QRls 发布辅助", () => {
     ]);
     expect(variants["macos-arm"].main).toBe(join(dir, `JuRename-${version}-arm64-mac.zip`));
     expect(variants["windows-x64"].main).toBe(join(dir, `JuRename-${version}-win.zip`));
+  });
+
+  test("existingReleaseArtifacts 只统计当前版本已有的包", () => {
+    const version = "1.2.5";
+    const dir = mkdtempSync(join(tmpdir(), "jurename-qrls-partial-"));
+    writeFileSync(join(dir, `JuRename-${version}-arm64-mac.zip`), "artifact");
+    writeFileSync(join(dir, `JuRename-${version}-x64-mac.zip`), "artifact");
+    expect(existingReleaseArtifacts(dir, version)).toEqual([
+      `JuRename-${version}-arm64-mac.zip`,
+      `JuRename-${version}-x64-mac.zip`,
+    ]);
+    expect(existingReleaseArtifacts(dir, "1.2.4")).toEqual([]);
   });
 
   test("缺少任一平台产物时拒绝发布", () => {

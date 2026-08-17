@@ -108,7 +108,7 @@ release
 
 `dist` 会在本机完成 macOS 签名与公证，并通过 Docker 构建 Windows 和 Linux 包。Docker 需要至少分配 5 GiB 内存，所有产物输出到 `release/`。
 
-打包支持断点续跑：重新执行 `dist` 或失败后的 `release` 时，当前版本已经生成的各平台产物会被跳过，只构建缺失的平台。旧版本产物不会被当作当前版本，也不会上传到新的 GitHub Release。
+打包和发布都支持断点续跑。某一步失败后直接再跑同一条命令即可：已升过的版本不会再递增，已公证的 macOS 包、已打好的 Windows / Linux 包、已创建的 commit / tag / 远程 tag 都会跳过，只继续失败的那一步。旧版本产物不会被当作当前版本。失败时不会回滚 `package.json` 版本。
 
 QRls 会把各平台安装包发到 R2 和 GitHub，并生成 `https://download.qzrzz.com/JuRename/download.json`。官网通过 `page.downloadBase` 读取这份清单。R2 / GitHub 凭据从 `~/.config/qrls/qrls.config.json` 或环境变量读取；GitHub Token 也可由已登录的 `gh` 自动提供。分发失败后可只重试上传：
 
@@ -131,7 +131,7 @@ APPLE_TEAM_ID='TEAMID'
 gh auth login
 ```
 
-发布脚本要求 Git 工作区干净。它会更新版本、构建官网和三平台安装包、提交、创建并推送 Git tag，最后用 QRls 上传到 R2 和 GitHub：
+发布脚本会更新版本、构建三平台安装包、提交、创建并推送 Git tag，最后用 QRls 上传到 R2 和 GitHub：
 
 ```bash
 bun run release           # patch，例如 1.0.0 → 1.0.1

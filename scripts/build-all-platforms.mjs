@@ -39,6 +39,7 @@ const dockerBuild = (platform, image) => {
       'mkdir -p /project',
       'tar --exclude=node_modules --exclude=release --exclude=dist-electron --exclude=.git -C /source -cf - . | tar -C /project -xf -',
       'rm -f bun.lock',
+      'node scripts/strip-link-deps.mjs',
       'npm install --legacy-peer-deps --package-lock=false',
       `node scripts/package-platform.mjs ${platform}`,
       `cp /project/release/${artifact} /output/${artifact}`,
@@ -60,9 +61,10 @@ const hasArtifact = (platform) => {
 
 const buildUnlessComplete = async (platform, build) => {
   if (hasArtifact(platform)) {
-    console.log(`Skipping ${platform}: release artifact for v${version} already exists.`);
+    console.log(`▸ 跳过 ${platform}：v${version} 产物已存在`);
     return;
   }
+  console.log(`▸ 构建 ${platform}（v${version}）…`);
   await build();
 };
 

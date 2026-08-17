@@ -1,9 +1,6 @@
 import type { IPageMeta, ISection, IQPageConfig } from "qpage";
 
-export const config: IQPageConfig = {
-  defaultLang: "zh-Hans",
-  siteOrigin: "https://qzrzz.github.io/JuRename",
-};
+export const config: IQPageConfig = {};
 
 import UrlIcon from "./assets/jurename-icon.png";
 import UrlIconFull from "./icons/icon-full.png";

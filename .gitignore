@@ -8,6 +8,7 @@ lerna-debug.log*
 dist-electron
 release
 .qrls-state.json
+.release-state.json
 
 temp
 # Diagnostic reports (https://nodejs.org/api/report.html)

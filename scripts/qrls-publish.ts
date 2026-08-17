@@ -34,6 +34,23 @@ export const RELEASE_VARIANT_FILES = {
 export type IReleaseVariantKey = keyof typeof RELEASE_VARIANT_FILES;
 
 /**
+ * 当前版本应有的安装包文件名列表
+ * @param version 语义化版本
+ */
+export function listReleaseArtifactNames(version: string): string[] {
+  return Object.values(RELEASE_VARIANT_FILES).map((fileNameOf) => fileNameOf(version));
+}
+
+/**
+ * 发行目录里已经存在的当前版本安装包
+ * @param releaseDir 发行产物目录
+ * @param version 语义化版本
+ */
+export function existingReleaseArtifacts(releaseDir: string, version: string): string[] {
+  return listReleaseArtifactNames(version).filter((fileName) => existsSync(join(releaseDir, fileName)));
+}
+
+/**
  * 拼接 R2 公开下载地址
  * @param fileName 对象文件名
  */
